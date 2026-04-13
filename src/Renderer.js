@@ -432,9 +432,13 @@ const Renderer = (() => {
     const zoom = cam.zoomLevel;
     const RW   = ROAD_W;
 
-    const poly = (edge) => MathEngine.curveToScreenPolyline(
-      edge.curve, cam, aabb, MathEngine.adaptiveSegments(edge.curve, zoom), RW
-    );
+    // Catmull-Rom cubic curves benefit from more segments at close zoom.
+    const poly = (edge) => {
+      const baseSeg = MathEngine.adaptiveSegments(edge.curve, zoom);
+      // Cubic curves (Catmull-Rom) need more precision than quadratic
+      const segs = edge.curve.type === 'C' ? Math.min(48, baseSeg + 4) : baseSeg;
+      return MathEngine.curveToScreenPolyline(edge.curve, cam, aabb, segs, RW);
+    };
 
     // Determine which edges to dim (if search animation active)
     const sanim = _searchAnim && !_searchAnim.done;
@@ -527,20 +531,62 @@ const Renderer = (() => {
 
   function _drawSearchOverlay(world, cam, aabb, zoom) {
     if (!_searchAnim) return;
-    const sa = _searchAnim;
+    const sa  = _searchAnim;
+    const RW  = ROAD_W;
 
-    // Efek Pencarian: Lingkaran biru yang meluas dari titik-titik yang diperiksa
+    // ── Pass 1: Ruas jalan yang sudah dieksplorasi — "Blue Wave" ─────────────
+    // Ini adalah inti dari ketentuan: jalan yang dievaluasi A* menyala biru
+    // dan merambat perlahan dari titik Start.
+    if (sa.litExploredEdges && sa.litExploredEdges.size > 0) {
+      _ctx.save();
+
+      for (const edgeId of sa.litExploredEdges) {
+        const e = world.edges[edgeId];
+        if (!e) continue;
+
+        const segs = MathEngine.adaptiveSegments(e.curve, zoom);
+        const p    = MathEngine.curveToScreenPolyline(e.curve, cam, aabb, segs, RW);
+        if (!p || p.length < 2) continue;
+
+        // Layer 1: Glow lebar biru gelap (halo)
+        _strokeLine(p, 'rgba(0, 80, 220, 0.28)',
+          MathEngine.worldLenToScreen(RW + 10, zoom));
+
+        // Layer 2: Fill biru cerah (jalan utama diwarnai)
+        _strokeLine(p, 'rgba(30, 140, 255, 0.55)',
+          MathEngine.worldLenToScreen(RW, zoom));
+
+        // Layer 3: Core highlight biru muda tipis (tepi tengah bersinar)
+        _strokeLine(p, 'rgba(140, 210, 255, 0.70)',
+          MathEngine.worldLenToScreen(RW * 0.30, zoom));
+      }
+
+      _ctx.restore();
+    }
+
+    // ── Pass 2: Lingkaran ripple di setiap node yang dikunjungi ──────────────
+    // Melengkapi efek: "wave front" tampak sebagai lingkaran di persimpangan.
     _ctx.save();
     for (const nodeId of sa.litNodes) {
       const node = world.nodes[nodeId];
       if (!node) continue;
       const s = MathEngine.worldToScreen(node.x, node.y, cam);
-      const r = MathEngine.worldLenToScreen(10, zoom);
+      const r = MathEngine.worldLenToScreen(9, zoom);
 
+      // Outer glow ring
       _ctx.beginPath();
-      _ctx.arc(s.x, s.y, r * 1.5, 0, MathEngine.TAU);
-      _ctx.fillStyle = 'rgba(0, 204, 238, 0.2)'; // Warna Cyan transparan
+      _ctx.arc(s.x, s.y, r * 2.2, 0, MathEngine.TAU);
+      _ctx.fillStyle = 'rgba(0, 100, 255, 0.12)';
       _ctx.fill();
+
+      // Inner filled dot — titik biru solid
+      _ctx.beginPath();
+      _ctx.arc(s.x, s.y, Math.max(2, r * 0.65), 0, MathEngine.TAU);
+      _ctx.fillStyle   = 'rgba(80, 180, 255, 0.85)';
+      _ctx.fill();
+      _ctx.strokeStyle = 'rgba(200, 235, 255, 0.70)';
+      _ctx.lineWidth   = 1;
+      _ctx.stroke();
     }
     _ctx.restore();
   }
@@ -580,7 +626,7 @@ const Renderer = (() => {
   // ─────────────────────────────────────────────────────────────
 
   function _drawNodes(world, cam) {
-    if (!world.nodes || cam.zoomLevel < 0.15) return;
+    if (!world.nodes || cam.zoomLevel < 0.12) return;
     const aabb  = StateController.getViewportAABB();
     const pulse = 0.5 + 0.5 * Math.sin(_time * 4);
 
@@ -622,11 +668,22 @@ const Renderer = (() => {
           _ctx.textBaseline = 'alphabetic';
         }
 
-      } else if (cam.zoomLevel > 0.36) {
-        const r = Math.max(1.5, MathEngine.worldLenToScreen(3.5, cam.zoomLevel));
+      } else if (cam.zoomLevel > 0.16) {
+        // ── Intersection dot — visible at much lower zoom levels ──────────
+        // This fulfils the requirement: "Every vertex must show a clear dot
+        // to reveal the underlying graph structure."
+        const r = Math.max(2, MathEngine.worldLenToScreen(4.5, cam.zoomLevel));
+
+        // Outer ring (slate-blue, stands out from road tarmac)
+        _ctx.beginPath();
+        _ctx.arc(s.x, s.y, r + 1.2, 0, MathEngine.TAU);
+        _ctx.fillStyle = 'rgba(90, 105, 140, 0.70)';
+        _ctx.fill();
+
+        // Inner filled dot
         _ctx.beginPath();
         _ctx.arc(s.x, s.y, r, 0, MathEngine.TAU);
-        _ctx.fillStyle   = ROAD_BORDER;
+        _ctx.fillStyle   = '#b8c4d8';
         _ctx.fill();
       }
     }
