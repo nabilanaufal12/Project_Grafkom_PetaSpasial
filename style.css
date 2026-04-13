@@ -1,0 +1,397 @@
+/* ═══════════════════════════════════════════════════════════════
+   URBS — style.css  |  Dashboard / Map Pathfinding Edition
+   Layout: Fixed top nav  +  Canvas fills remaining height
+           + Fixed status bar at bottom
+════════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* ── Tokens ─────────────────────────────────────────────────── */
+:root {
+  --nav-h:     52px;
+  --bar-h:     28px;
+
+  --nav-bg:    #111820;
+  --nav-bd:    rgba(255,255,255,0.08);
+  --canvas-bg: #152e42;
+
+  --cyan:      #00ccee;
+  --green:     #20dd66;
+  --red:       #ee2244;
+  --orange:    #ff9020;
+  --yellow:    #f5c518;
+
+  --text:      rgba(228,235,245,0.92);
+  --text-dim:  rgba(160,180,200,0.55);
+  --text-hi:   #ffffff;
+
+  --btn-bg:    rgba(255,255,255,0.06);
+  --btn-bd:    rgba(255,255,255,0.12);
+  --btn-hvr:   rgba(255,255,255,0.12);
+
+  --font-ui:   'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+  --r:         5px;
+}
+
+/* ── Reset ───────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: var(--canvas-bg);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--text);
+}
+
+/* ── Canvas ──────────────────────────────────────────────────── */
+#cityCanvas {
+  position: fixed;
+  left: 0;
+  top:  var(--nav-h);
+  width: 100%;
+  height: calc(100% - var(--nav-h) - var(--bar-h));
+  display: block;
+  cursor: crosshair;
+}
+#cityCanvas.panning   { cursor: grabbing; }
+#cityCanvas.pick-mode { cursor: cell; }
+
+/* ══════════════════════════════════════════════════════════════
+   TOP NAV BAR
+══════════════════════════════════════════════════════════════ */
+#topnav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: var(--nav-h);
+  background: var(--nav-bg);
+  border-bottom: 1px solid var(--nav-bd);
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0 14px;
+  z-index: 200;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.5);
+}
+
+/* Brand */
+.nav-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-right: 20px;
+  flex-shrink: 0;
+}
+.brand-u {
+  font-family: var(--font-mono);
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: 3px;
+  color: var(--text-hi);
+}
+.brand-s {
+  font-family: var(--font-mono);
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: 3px;
+  color: var(--cyan);
+  text-shadow: 0 0 8px rgba(0,204,238,0.45);
+}
+.brand-tag {
+  font-size: 9px;
+  letter-spacing: 2.5px;
+  color: var(--text-dim);
+  margin-left: 8px;
+  padding-left: 10px;
+  border-left: 1px solid rgba(255,255,255,0.1);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Nav separator */
+.nav-sep {
+  width: 1px;
+  height: 26px;
+  background: var(--nav-bd);
+  margin: 0 10px;
+  flex-shrink: 0;
+}
+
+/* Controls group */
+.nav-controls {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: nowrap;
+}
+
+/* ── Map Preset group ─────────────────────────────────────── */
+.map-preset-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--r);
+  padding: 3px 8px;
+}
+
+.preset-lbl {
+  font-size: 7.5px;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-right: 4px;
+  white-space: nowrap;
+}
+
+.map-preset-btn {
+  padding: 0 9px;
+  min-width: 28px;
+  font-weight: 600;
+  font-size: 11px;
+  border-color: rgba(255,255,255,0.1);
+}
+
+.map-preset-btn.active-map {
+  border-color: var(--cyan) !important;
+  color: var(--cyan) !important;
+  background: rgba(0,204,238,0.12) !important;
+  box-shadow: 0 0 10px rgba(0,204,238,0.25);
+}
+
+/* Base button */
+.nav-btn {
+  height: 32px;
+  padding: 0 13px;
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-bd);
+  border-radius: var(--r);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.13s, border-color 0.13s, color 0.13s, box-shadow 0.13s;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.nav-btn:hover:not(:disabled) {
+  background: var(--btn-hvr);
+  border-color: rgba(255,255,255,0.28);
+  color: var(--text-hi);
+}
+.nav-btn:active:not(:disabled) { transform: scale(0.96); }
+.nav-btn:disabled { opacity: 0.32; cursor: not-allowed; }
+
+/* Set Start — green */
+.btn-a { border-color: rgba(32,221,102,0.25); }
+.btn-a:hover:not(:disabled),
+.btn-a.active {
+  border-color: var(--green) !important;
+  color: var(--green) !important;
+  background: rgba(32,221,102,0.1) !important;
+  box-shadow: 0 0 8px rgba(32,221,102,0.2);
+}
+.btn-a.active { animation: pulse-green 1s ease infinite; }
+@keyframes pulse-green {
+  0%,100% { box-shadow: 0 0 4px rgba(32,221,102,0.2); }
+  50%     { box-shadow: 0 0 12px rgba(32,221,102,0.5); }
+}
+
+/* Set End — red */
+.btn-b { border-color: rgba(238,34,68,0.25); }
+.btn-b:hover:not(:disabled),
+.btn-b.active {
+  border-color: var(--red) !important;
+  color: var(--red) !important;
+  background: rgba(238,34,68,0.1) !important;
+  box-shadow: 0 0 8px rgba(238,34,68,0.2);
+}
+.btn-b.active { animation: pulse-red 1s ease infinite; }
+@keyframes pulse-red {
+  0%,100% { box-shadow: 0 0 4px rgba(238,34,68,0.2); }
+  50%     { box-shadow: 0 0 12px rgba(238,34,68,0.5); }
+}
+
+/* Start Track — orange/green */
+.btn-play { border-color: rgba(32,221,102,0.3); }
+.btn-play:not(:disabled):not(.is-paused) {
+  border-color: var(--green);
+  color: var(--green);
+  background: rgba(32,221,102,0.08);
+}
+.btn-play.is-paused {
+  border-color: var(--orange) !important;
+  color: var(--orange) !important;
+  background: rgba(255,144,32,0.1) !important;
+}
+
+/* Reset */
+.btn-reset { border-color: rgba(255,255,255,0.1); }
+.btn-reset:hover:not(:disabled) {
+  border-color: rgba(255,160,60,0.5);
+  color: var(--orange);
+}
+
+/* ── Stats group ─────────────────────────────────────────────── */
+.nav-stats {
+  display: flex;
+  align-items: stretch;
+  margin-left: auto;
+  border-left: 1px solid var(--nav-bd);
+  border-right: 1px solid var(--nav-bd);
+  height: 100%;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 14px;
+  border-right: 1px solid rgba(255,255,255,0.06);
+  gap: 2px;
+  min-width: 88px;
+}
+.stat-item:last-child { border-right: none; }
+
+.stat-lbl {
+  font-size: 7.5px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.stat-val {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--cyan);
+  line-height: 1.2;
+}
+
+/* FPS badge */
+.nav-fps {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  padding: 0 14px;
+  white-space: nowrap;
+}
+.nav-fps span { color: var(--green); }
+
+/* ══════════════════════════════════════════════════════════════
+   STATUS BAR (bottom)
+══════════════════════════════════════════════════════════════ */
+#statusbar {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  height: var(--bar-h);
+  background: var(--nav-bg);
+  border-top: 1px solid var(--nav-bd);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  z-index: 200;
+  font-size: 10px;
+}
+
+#status-msg  { color: var(--text-dim); letter-spacing: 0.3px; }
+#status-msg.ok     { color: var(--green); }
+#status-msg.warn   { color: var(--orange); }
+#status-msg.active { color: var(--cyan); }
+
+#status-seed {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   TOAST
+══════════════════════════════════════════════════════════════ */
+#toast {
+  position: fixed;
+  top: calc(var(--nav-h) + 12px);
+  left: 50%;
+  transform: translateX(-50%) translateY(-6px);
+  background: rgba(17,24,32,0.94);
+  border: 1px solid rgba(0,204,238,0.3);
+  border-radius: var(--r);
+  padding: 7px 18px;
+  font-size: 11px;
+  letter-spacing: 0.8px;
+  color: var(--cyan);
+  z-index: 500;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s, transform 0.2s;
+  backdrop-filter: blur(8px);
+  white-space: nowrap;
+}
+#toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   DEBUG PANEL
+══════════════════════════════════════════════════════════════ */
+#debug-panel {
+  position: fixed;
+  bottom: var(--bar-h);
+  left: 14px;
+  width: 360px;
+  max-height: 190px;
+  background: rgba(4,8,14,0.95);
+  border: 1px solid rgba(255,144,32,0.25);
+  border-radius: var(--r);
+  padding: 8px 12px 12px;
+  z-index: 300;
+}
+.dbg-hdr {
+  font-size: 8px;
+  letter-spacing: 3px;
+  color: rgba(255,144,32,0.5);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid rgba(255,144,32,0.15);
+}
+#debug-log {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: rgba(160,180,200,0.65);
+  line-height: 1.65;
+  overflow-y: auto;
+  max-height: 155px;
+  white-space: pre-wrap;
+}
+
+/* Utility */
+.hidden { display: none !important; }
+
+/* ══════════════════════════════════════════════════════════════
+   SEARCH ANIMATION INDICATOR
+══════════════════════════════════════════════════════════════ */
+/* The btn-track shows a spinner-like state during search */
+#btn-track:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+/* Pulse on active status bar */
+#status-msg.active {
+  animation: status-pulse 1.2s ease-in-out infinite;
+}
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; }
+  50%  { opacity: 0.65; }
+}

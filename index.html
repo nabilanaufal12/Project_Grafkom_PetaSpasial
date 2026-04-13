@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>URBS — Map Pathfinding</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+  <!-- ══ CANVAS ══════════════════════════════════════════════ -->
+  <canvas id="cityCanvas"></canvas>
+
+  <!-- ══ TOP NAVIGATION / DASHBOARD BAR ═════════════════════ -->
+  <nav id="topnav">
+
+    <!-- Brand -->
+    <div class="nav-brand">
+      <span class="brand-u">URB</span><span class="brand-s">S</span>
+      <span class="brand-tag">Map Pathfinding</span>
+    </div>
+
+    <!-- Control buttons group -->
+    <div class="nav-controls">
+
+      <!-- Preset Maps group -->
+      <div class="map-preset-group">
+        <span class="preset-lbl">PETA</span>
+        <button class="nav-btn map-preset-btn" data-idx="0" title="Peta 1 [tombol 1]">1</button>
+        <button class="nav-btn map-preset-btn" data-idx="1" title="Peta 2 [tombol 2]">2</button>
+        <button class="nav-btn map-preset-btn" data-idx="2" title="Peta 3 [tombol 3]">3</button>
+        <button class="nav-btn map-preset-btn" data-idx="3" title="Peta 4 [tombol 4]">4</button>
+        <button class="nav-btn map-preset-btn" data-idx="4" title="Peta 5 [tombol 5]">5</button>
+        <button class="nav-btn" id="btn-acak" title="Peta seed acak">⟳ Acak</button>
+      </div>
+
+      <div class="nav-sep"></div>
+
+      <button class="nav-btn btn-a" id="btn-set-start" title="Pilih node awal (Start A)">
+        ▲ Set Start
+      </button>
+      <button class="nav-btn btn-b" id="btn-set-end" title="Pilih node tujuan (End B)">
+        ▼ Set End
+      </button>
+
+      <div class="nav-sep"></div>
+
+      <button class="nav-btn btn-play" id="btn-track" title="Mulai / Pause animasi kendaraan" disabled>
+        ▶ Start Track
+      </button>
+      <button class="nav-btn btn-reset" id="btn-reset" title="Reset posisi kendaraan dan jalur">
+        ↺ Reset
+      </button>
+    </div>
+
+    <!-- Stats group -->
+    <div class="nav-stats">
+      <div class="stat-item">
+        <span class="stat-lbl">NODE JALUR</span>
+        <span class="stat-val" id="st-node-jalur">—</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-lbl">EDGE JALUR</span>
+        <span class="stat-val" id="st-edge-jalur">—</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-lbl">JARAK RUTE</span>
+        <span class="stat-val" id="st-jarak">—</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-lbl">WAKTU CARI</span>
+        <span class="stat-val" id="st-waktu">—</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-lbl">DIKUNJUNGI</span>
+        <span class="stat-val" id="st-visited">—</span>
+      </div>
+    </div>
+
+    <!-- FPS badge -->
+    <div class="nav-fps">
+      FPS <span id="st-fps">—</span>
+    </div>
+
+  </nav><!-- /topnav -->
+
+  <!-- ══ STATUS BAR (below canvas) ═══════════════════════════ -->
+  <div id="statusbar">
+    <span id="status-msg">Siap — pilih peta, lalu Set Start &amp; End</span>
+    <span id="status-seed">Seed: 1234</span>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast"></div>
+
+  <!-- Debug panel (D key) -->
+  <div id="debug-panel" class="hidden">
+    <div class="dbg-hdr">DEBUG</div>
+    <pre id="debug-log"></pre>
+  </div>
+
+  <!-- Module scripts -->
+  <script src="src/StateController.js"></script>
+  <script src="src/MathEngine.js"></script>
+  <script src="src/MapGenerator.js"></script>
+  <script src="src/Pathfinder.js"></script>
+  <script src="src/Renderer.js"></script>
+  <script src="src/main.js"></script>
+
+</body>
+</html>
