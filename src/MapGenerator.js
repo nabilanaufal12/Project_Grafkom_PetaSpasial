@@ -286,58 +286,34 @@ const MapGenerator = (() => {
     const ek = (a, b) => a < b ? `${a},${b}` : `${b},${a}`;
     for (const { from, to } of mstPairs) set.add(ek(from, to));
 
-    // Count connections per node
     const degree = new Int32Array(nodes.length);
     for (const { from, to } of mstPairs) {
-      degree[from]++;
-      degree[to]++;
+      degree[from]++; degree[to]++;
     }
 
     const extra = [];
-    const maxD2 = CFG.EXTRA_EDGE_MAX * CFG.EXTRA_EDGE_MAX;
-
-    // Build candidate list sorted by distance
-    const cands = [];
+    // Langkah Krusial: Cari semua node 'ujung' (degree 1) dan hubungkan
     for (let i = 0; i < nodes.length; i++) {
-      for (let j = i + 1; j < nodes.length; j++) {
-        if (set.has(ek(i, j))) continue;
-        const dx = nodes[i].x - nodes[j].x, dy = nodes[i].y - nodes[j].y;
-        const d2 = dx*dx + dy*dy;
-        if (d2 <= maxD2) cands.push({ from: i, to: j, d2 });
+      if (degree[i] < 2) {
+        // Cari node terdekat yang belum terhubung
+        let bestDist = Infinity;
+        let targetNode = -1;
+        for (let j = 0; j < nodes.length; j++) {
+          if (i === j || set.has(ek(i, j))) continue;
+          const d = MathEngine.nodeDistance(nodes[i], nodes[j]);
+          if (d < bestDist) {
+            bestDist = d;
+            targetNode = j;
+          }
+        }
+        if (targetNode !== -1) {
+          const k = ek(i, targetNode);
+          set.add(k);
+          extra.push({ from: i, to: targetNode, d2: bestDist * bestDist });
+          degree[i]++; degree[targetNode]++;
+        }
       }
     }
-    cands.sort((a, b) => a.d2 - b.d2);
-
-    // First pass: fix dead-ends (degree < 2)
-    for (const c of cands) {
-      if (degree[c.from] < CFG.MIN_CONNECTIONS || degree[c.to] < CFG.MIN_CONNECTIONS) {
-        const k = ek(c.from, c.to);
-        if (set.has(k)) continue;
-        set.add(k);
-        extra.push(c);
-        degree[c.from]++;
-        degree[c.to]++;
-      }
-    }
-
-    // Second pass: add a few organic loop edges (not too many)
-    const loopTarget = Math.floor(nodes.length * 0.40);
-    let loopCount = 0;
-    for (const c of cands) {
-      if (loopCount >= loopTarget) break;
-      const k = ek(c.from, c.to);
-      if (set.has(k)) continue;
-      // Prefer edges between nodes of different kinds for organic loops
-      const a = nodes[c.from], b = nodes[c.to];
-      if (a.kind !== b.kind || _c(0.35)) {
-        set.add(k);
-        extra.push(c);
-        degree[c.from]++;
-        degree[c.to]++;
-        loopCount++;
-      }
-    }
-
     return extra;
   }
 

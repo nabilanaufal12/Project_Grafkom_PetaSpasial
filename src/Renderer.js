@@ -470,23 +470,6 @@ const Renderer = (() => {
     _ctx.setLineDash([]);
     _ctx.restore();
 
-    // Pass 4: Draw road nodes (small visible dot at each sampled vertex) to represent graph structure
-    for (const e of world.edges) {
-      const p = poly(e);
-      if (!p) continue;
-      _ctx.fillStyle = '#f0f4f8';
-      for (const pt of p) {
-        _ctx.beginPath();
-        _ctx.arc(pt.x, pt.y, Math.max(1.2, MathEngine.worldLenToScreen(2.5, zoom)), 0, MathEngine.TAU);
-        _ctx.fill();
-        
-        // slight outline for contrast
-        _ctx.strokeStyle = ROAD_BORDER;
-        _ctx.lineWidth   = 0.5;
-        _ctx.stroke();
-      }
-    }
-
     // Search animation overlay
     if (sanim) {
       _drawSearchOverlay(world, cam, aabb, zoom);
@@ -544,46 +527,21 @@ const Renderer = (() => {
 
   function _drawSearchOverlay(world, cam, aabb, zoom) {
     if (!_searchAnim) return;
-    const sa     = _searchAnim;
-    const RW     = ROAD_W;
+    const sa = _searchAnim;
 
-    // Draw explored edges (cyan glow) — already lit
-    _ctx.save();
-    for (const e of world.edges) {
-      if (!sa.litExploredEdges.has(e.id)) continue;
-      if (sa.pathEdgeSet && sa.pathEdgeSet.has(e.id)) continue; // path drawn separately
-      const segs = MathEngine.adaptiveSegments(e.curve, zoom);
-      const p    = MathEngine.curveToScreenPolyline(e.curve, cam, aabb, segs, RW);
-      if (!p || p.length < 2) continue;
-      // Explored edge: cyan/teal glow
-      _strokeLine(p, '#0088aa44', MathEngine.worldLenToScreen(RW + 6, zoom));
-      _strokeLine(p, '#00ccdd',   MathEngine.worldLenToScreen(RW * 0.5, zoom));
-    }
-    _ctx.restore();
-
-    // Draw visited nodes (blue expanding ripples)
+    // Efek Pencarian: Lingkaran biru yang meluas dari titik-titik yang diperiksa
     _ctx.save();
     for (const nodeId of sa.litNodes) {
       const node = world.nodes[nodeId];
       if (!node) continue;
       const s = MathEngine.worldToScreen(node.x, node.y, cam);
-      const r = Math.max(4, MathEngine.worldLenToScreen(10, zoom));
+      const r = MathEngine.worldLenToScreen(10, zoom);
 
-      // Outer glow
       _ctx.beginPath();
-      _ctx.arc(s.x, s.y, r * 1.8, 0, MathEngine.TAU);
-      _ctx.fillStyle = 'rgba(0,180,255,0.12)';
-      _ctx.fill();
-
-      // Inner dot
-      _ctx.beginPath();
-      _ctx.arc(s.x, s.y, r * 0.55, 0, MathEngine.TAU);
-      _ctx.fillStyle = '#00c8ff';
+      _ctx.arc(s.x, s.y, r * 1.5, 0, MathEngine.TAU);
+      _ctx.fillStyle = 'rgba(0, 204, 238, 0.2)'; // Warna Cyan transparan
       _ctx.fill();
     }
-    
-    // (A* formulation removed to maintain clear visual graphics per user req)
-    
     _ctx.restore();
   }
 
@@ -605,13 +563,13 @@ const Renderer = (() => {
       // Orange fill
       _strokeLine(p, '#e89018', MathEngine.worldLenToScreen(RW, zoom));
 
-      // Static yellow dash chain on path (no movement)
+      // Animated yellow dash chain on path (bergerak mengikuti waktu)
       _ctx.save();
       const dl = Math.max(3, MathEngine.worldLenToScreen(14, zoom));
       const gl = Math.max(2, MathEngine.worldLenToScreen(6, zoom));
       _ctx.setLineDash([dl, gl]);
-      _ctx.lineDashOffset = 0;  // STATIC
-      _strokeLine(p, '#f5d820', Math.max(1.2, MathEngine.worldLenToScreen(2.5, zoom)));
+      _ctx.lineDashOffset = -_time * 40;  // Memberikan efek animasi mengalir (bergerak)
+      _strokeLine(p, '#f5d820', MathEngine.worldLenToScreen(2.5, zoom));
       _ctx.setLineDash([]);
       _ctx.restore();
     }
