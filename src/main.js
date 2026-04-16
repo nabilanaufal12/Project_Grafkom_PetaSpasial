@@ -184,9 +184,12 @@
   function _onGoalReached() {
     _paused = true;
     const btn = $('btn-track');
-    btn.textContent = '↺ Ulangi';
-    btn.classList.remove('is-paused');
-    _status('Kendaraan tiba di tujuan! 🎉', 'ok');
+    if (btn) {
+      btn.textContent = '▶ Ulangi';
+      btn.classList.remove('is-paused');
+      btn.disabled = false;
+    }
+    _status('Kendaraan tiba di tujuan! 🏁', 'ok');
     _toast('🏁 Tujuan tercapai!');
   }
 
@@ -309,79 +312,117 @@
     _enterPickMode(PICK.END);
   });
 
-  // Start/Pause Track
+  // Start / Pause / Resume / Replay
   $('btn-track')?.addEventListener('click', () => {
     const btn = $('btn-track');
 
-    // 1) TRIGGER SEARCH ANIMATION IF NOT DONE YET
+    // ── PHASE 1: Trigger search animation (only runs once per A* result) ──────
+    // Guard: searchResult exists, path NOT ready yet, and no animation running.
     if (_searchResult && !_pathReady && !Renderer.isSearchAnimating()) {
-      btn.disabled = true;
+      btn.disabled    = true;
       btn.textContent = '⏳ Mencari rute…';
-      _status('Menampilkan proses kalkulasi algoritma A*...', 'active');
-      
-      // factor 0.35 means much slower = easier to see
+      _status('Menampilkan proses pencarian algoritma A*…', 'active');
+
       Renderer.startSearchAnimation(_searchResult, () => {
+        // onComplete fires synchronously inside drawFrame → no race condition.
         Renderer.setActivePath(_searchResult, _startId, _goalId);
         Renderer.stopSearchAnimation();
 
-        // Create car, ready to drive
+        // Instantiate vehicle
         if (_car) StateController.removeVehicle(0);
-        _car    = new VehicleAgent(_searchResult);
-        _paused = true;
+        _car = new VehicleAgent(_searchResult);
         StateController.registerVehicle(_car);
         _pathReady = true;
 
-        btn.disabled     = false;
-        btn.textContent  = '▶ Lanjut Gerak';
+        // ── DIRECT START — no setTimeout, no btn.click() ──────────────────
+        // Setting _paused = false here is synchronous and atomic: the RAF
+        // loop reads _paused AFTER this callback returns, so there is never
+        // a frame where the car ticks unexpectedly.
+        _paused = false;
+
+        btn.disabled    = false;
+        btn.textContent = '⏸ Pause Track';
         btn.classList.remove('is-paused');
 
         const distKm = (_searchResult.totalLength / 100).toFixed(2);
-        _status(`Jalur ditemukan — ${_searchResult.nodeSequence.length} node, ${distKm} km`, 'ok');
-        
-        // Auto start the car movement after a short pause
-        setTimeout(() => {
-          if (_pathReady && _paused) btn.click();
-        }, 1000);
-      }, 0.35); 
+        _status(
+          `Jalur ${_searchResult.nodeSequence.length} node, ${distKm} km — kendaraan berjalan!`,
+          'ok'
+        );
+        _toast('🚌 Kendaraan mulai bergerak!');
+      }); // ← no speedFactor: Renderer formula now ensures ~5s animation
       return;
     }
 
-    // 2) CAR MOVEMENT CONTROL
+    // ── PHASE 2: Car movement control (pause / resume / replay) ──────────────
     if (!_car || !_pathReady) return;
-    if (_car.done) { _car.reset(); }
+
+    // If car finished its route, reset it to the start before toggling
+    if (_car.done) _car.reset();
+
     _paused = !_paused;
     btn.textContent = _paused ? '▶ Lanjut Track' : '⏸ Pause Track';
     btn.classList.toggle('is-paused', _paused);
-    _status(_paused ? 'Dijeda' : 'Kendaraan bergerak…', _paused ? '' : 'active');
+    _status(
+      _paused ? 'Dijeda — klik lagi untuk lanjut' : 'Kendaraan bergerak…',
+      _paused ? '' : 'active'
+    );
   });
 
-  // Reset
+  // ↺ Reset car to start (keeps route, path NOT cleared)
   $('btn-reset')?.addEventListener('click', () => {
-    if (_car) { _car.reset(); _paused = true; }
+    if (_car) {
+      _car.reset();
+      _paused    = true;
+      _pathReady = false;  // force user to click Start Track again — no auto-start
+    }
     Renderer.stopSearchAnimation();
     const btn = $('btn-track');
-    btn.textContent = '▶ Start Track';
-    btn.classList.remove('is-paused');
-    _status('Reset — klik Start Track untuk mulai lagi', '');
+    if (btn) {
+      btn.disabled    = false;
+      btn.textContent = '▶ Start Track';
+      btn.classList.remove('is-paused');
+    }
+    _status('Reset — klik Start Track untuk animasi ulang', '');
     _toast('↺ Reset');
   });
 
+  /**
+   * Full reset — called when switching maps or Acak.
+   * Clears ALL state: car, animation, route, pick mode, stats.
+   */
   function _reset() {
-    if (_car) { StateController.removeVehicle(0); _car = null; }
+    // Stop any in-progress animation first
     Renderer.stopSearchAnimation();
-    _startId   = _goalId = -1;
-    _pathReady = false;
-    _paused    = true;
-    _pickMode  = PICK.NONE;
+
+    // Remove vehicle
+    if (_car) { StateController.removeVehicle(0); _car = null; }
+
+    // Clear route state
+    _startId      = -1;
+    _goalId       = -1;
+    _pathReady    = false;
+    _paused       = true;
+    _pickMode     = PICK.NONE;
     _searchResult = null;
-    canvas.classList.remove('pick-mode');
-    $('btn-set-start').classList.remove('active');
-    $('btn-set-end').classList.remove('active');
-    $('btn-track').disabled    = true;
-    $('btn-track').textContent = '▶ Start Track';
-    $('btn-track').classList.remove('is-paused');
+
+    // Reset canvas cursor state
+    canvas.classList.remove('pick-mode', 'panning');
+
+    // Reset DOM
+    const safeGet = (id) => document.getElementById(id);
+    safeGet('btn-set-start')?.classList.remove('active');
+    safeGet('btn-set-end')?.classList.remove('active');
+    const trackBtn = safeGet('btn-track');
+    if (trackBtn) {
+      trackBtn.disabled   = true;
+      trackBtn.textContent = '▶ Start Track';
+      trackBtn.classList.remove('is-paused');
+    }
+
     Renderer.setActivePath(null, -1, -1);
-    ['st-node-jalur','st-edge-jalur','st-jarak','st-waktu','st-visited'].forEach(id => T(id, '—'));
+    ['st-node-jalur', 'st-edge-jalur', 'st-jarak', 'st-waktu', 'st-visited']
+      .forEach(id => T(id, '—'));
   }
 
   // ─────────────────────────────────────────────────────────────

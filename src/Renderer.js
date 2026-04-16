@@ -99,27 +99,29 @@ const Renderer = (() => {
    */
   function startSearchAnimation(result, onComplete, speedFactor) {
     if (!result) { if (onComplete) onComplete(); return; }
-    const factor = speedFactor || 1;
-    // Delay per step: shorter for many nodes, longer for few
-    const nodeCount = (result.visitedSequence || []).length;
-    const stepDelay = Math.max(0.015, Math.min(0.06, 1.2 / Math.max(1, nodeCount))) / factor;
+    const factor = (speedFactor != null && speedFactor > 0) ? speedFactor : 1;
+
+    // ── Delay formula rationale ────────────────────────────────────────────
+    // Goal: total animation ≈ 5 seconds regardless of how many nodes A* visits.
+    // min 0.08s/step  → each step is visible for ≥ 4-5 frames at 60 fps.
+    // max 0.22s/step  → sparse graphs don't feel too sluggish.
+    // factor > 1 speeds up (useful in tests), factor < 1 slows down.
+    const nodeCount = Math.max(1, (result.visitedSequence || []).length);
+    const stepDelay = Math.max(0.08, Math.min(0.22, 5.0 / nodeCount)) / factor;
 
     _searchAnim = {
-      visitedSequence: result.visitedSequence || [],
-      exploredEdges:   new Set(result.exploredEdges || []),
-      pathEdgeSet:     new Set((result.pathEdges || []).map(pe => pe.edge.id)),
-      stepIndex:       0,
-      stepTimer:       0,
+      visitedSequence:  result.visitedSequence || [],
+      exploredEdges:    new Set(result.exploredEdges || []),
+      pathEdgeSet:      new Set((result.pathEdges || []).map(pe => pe.edge.id)),
+      stepIndex:        0,
+      stepTimer:        0,
       stepDelay,
-      phase:           'explore',
-      revealTimer:     0,
-      revealDelay:     0.035 / factor,
-      revealIndex:     0,
-      done:            false,
-      onComplete:      onComplete || null,
-      // Which nodes have been "lit up" so far
-      litNodes:        new Set(),
-      // Which explored edges are shown
+      phase:            'explore',
+      // Pause between explore-done and route-reveal: 2 full step-delays
+      revealTimer:      stepDelay * 2,
+      done:             false,
+      onComplete:       onComplete || null,
+      litNodes:         new Set(),
       litExploredEdges: new Set(),
     };
   }
@@ -495,31 +497,36 @@ const Renderer = (() => {
 
     if (sa.phase === 'explore') {
       sa.stepTimer += dt;
-      while (sa.stepTimer >= sa.stepDelay && sa.stepIndex < sa.visitedSequence.length) {
+
+      // ── CRITICAL FIX: use `if` not `while` ────────────────────────────
+      // `while` would process multiple steps in a single slow frame
+      // (e.g. a 100ms frame with 80ms stepDelay would skip 1 step silently).
+      // `if` enforces strictly 1 step per frame, so every node is visible
+      // for at least one rendered frame regardless of frame timing.
+      if (sa.stepTimer >= sa.stepDelay && sa.stepIndex < sa.visitedSequence.length) {
         sa.stepTimer -= sa.stepDelay;
         const node = sa.visitedSequence[sa.stepIndex];
         sa.litNodes.add(node.nodeId);
         sa.stepIndex++;
       }
 
-      // Mark explored edges incrementally
+      // Rebuild explored-edge set from currently lit nodes
       const world = StateController.world;
       if (world && world.edges) {
         sa.litExploredEdges = new Set();
         for (const e of world.edges) {
           if (sa.exploredEdges.has(e.id)) {
-            // Show edge only if both endpoints visited
-            const fromLit = sa.litNodes.has(e.from);
-            const toLit   = sa.litNodes.has(e.to);
-            if (fromLit || toLit) sa.litExploredEdges.add(e.id);
+            if (sa.litNodes.has(e.from) || sa.litNodes.has(e.to))
+              sa.litExploredEdges.add(e.id);
           }
         }
       }
 
       if (sa.stepIndex >= sa.visitedSequence.length) {
-        sa.phase = 'reveal';
-        sa.revealTimer = sa.stepDelay * 3; // small pause before reveal
+        sa.phase      = 'reveal';
+        // revealTimer was already set in startSearchAnimation
       }
+
     } else if (sa.phase === 'reveal') {
       sa.revealTimer -= dt;
       if (sa.revealTimer <= 0) {
