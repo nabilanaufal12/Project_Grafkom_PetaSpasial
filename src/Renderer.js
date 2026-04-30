@@ -193,13 +193,6 @@ const Renderer = (() => {
   function _drawOceanIsland(vp, cam, world) {
     const cfg = MapGenerator.CFG;
 
-    const oceanGrad = _ctx.createLinearGradient(0, 0, 0, vp.height);
-    oceanGrad.addColorStop(0,   OCEAN_DEEP);
-    oceanGrad.addColorStop(0.5, OCEAN_MID);
-    oceanGrad.addColorStop(1,   OCEAN_DEEP);
-    _ctx.fillStyle = oceanGrad;
-    _ctx.fillRect(0, 0, vp.width, vp.height);
-
     if (!world.islandPoly || world.islandPoly.length < 3) return;
     const poly = world.islandPoly.map(p => MathEngine.worldToScreen(p.x, p.y, cam));
 
@@ -220,7 +213,7 @@ const Renderer = (() => {
       for (let j = 1; j < wPts.length; j++) _ctx.lineTo(wPts[j].x, wPts[j].y);
       _ctx.closePath();
       _ctx.strokeStyle = `rgba(40,100,160,${0.13 - i * 0.02})`;
-      _ctx.lineWidth   = 1 + i * 0.3;
+      _ctx.lineWidth   = (1 + i * 0.3) / cam.zoomLevel;
       _ctx.stroke();
     }
     _ctx.restore();
@@ -247,7 +240,7 @@ const Renderer = (() => {
     _fillPoly(poly, fillGrad);
 
     // Sandy beach ring
-    const beachW = Math.max(2, MathEngine.worldLenToScreen(14, cam.zoomLevel));
+    const beachW = Math.max(2 / cam.zoomLevel, 14);
     _strokePoly(poly, BEACH_COLOR, beachW);
 
     // Coastal vignette (clipped to island)
@@ -262,7 +255,7 @@ const Renderer = (() => {
     vig.addColorStop(0.65, 'rgba(0,0,0,0)');
     vig.addColorStop(1,   'rgba(0,0,0,0.18)');
     _ctx.fillStyle = vig;
-    _ctx.fillRect(0, 0, vp.width, vp.height);
+    _ctx.fillRect(cam.x, cam.y, vp.width / cam.zoomLevel, vp.height / cam.zoomLevel);
     _ctx.restore();
   }
 
@@ -282,7 +275,7 @@ const Renderer = (() => {
       const s  = MathEngine.worldToScreen(b.x, b.y, cam);
       const sw = MathEngine.worldLenToScreen(b.w, zoom);
       const sh = MathEngine.worldLenToScreen(b.h, zoom);
-      if (sw < 2.5) continue;
+      if (sw * zoom < 2.5) continue;
 
       // Ellipse ground shadow
       _ctx.save();
@@ -309,7 +302,7 @@ const Renderer = (() => {
     const body = _rotRect(cx, cy, hw, hh, 0);
 
     _fillPoly(body, wallCol);
-    _strokePoly(body, 'rgba(0,0,0,0.22)', 0.8);
+    _strokePoly(body, 'rgba(0,0,0,0.22)', 0.8 / zoom);
 
     if (sw > 5) {
       const roofH = sh * 0.36;
@@ -319,7 +312,7 @@ const Renderer = (() => {
         { x: cx,      y: cy - hh - roofH },
       ];
       _fillPoly(roof, roofCol);
-      _strokePoly(roof, 'rgba(0,0,0,0.18)', 0.6);
+      _strokePoly(roof, 'rgba(0,0,0,0.18)', 0.6 / zoom);
     }
 
     if (sh > 8) {
@@ -343,7 +336,7 @@ const Renderer = (() => {
     const body = _rotRect(cx, cy, hw, hh, 0);
 
     _fillPoly(body, wallCol);
-    _strokePoly(body, 'rgba(0,0,0,0.25)', 0.9);
+    _strokePoly(body, 'rgba(0,0,0,0.25)', 0.9 / zoom);
 
     if (sh > 8) {
       const bh = sh * 0.2;
@@ -395,7 +388,7 @@ const Renderer = (() => {
 
       const s  = MathEngine.worldToScreen(t.x, t.y, cam);
       const sr = MathEngine.worldLenToScreen(t.r, zoom);
-      if (sr < 1.5) continue;
+      if (sr * zoom < 1.5) continue;
 
       _ctx.save();
       _ctx.globalAlpha = 0.20;
@@ -463,15 +456,15 @@ const Renderer = (() => {
 
     // Pass 3: White STATIC dashed centreline (no movement)
     _ctx.save();
-    const dl = Math.max(3, MathEngine.worldLenToScreen(18, zoom));
-    const gl = Math.max(3, MathEngine.worldLenToScreen(12, zoom));
+    const dl = Math.max(3 / zoom, 18);
+    const gl = Math.max(3 / zoom, 12);
     _ctx.setLineDash([dl, gl]);
     _ctx.lineDashOffset = 0;  // STATIC — no animation on centreline
     for (const e of world.edges) {
       if (_activePathSet.has(e.id)) continue;
       const p = poly(e);
       if (!p) continue;
-      _strokeLine(p, ROAD_DASH, Math.max(0.8, MathEngine.worldLenToScreen(1.4, zoom)));
+      _strokeLine(p, ROAD_DASH, Math.max(0.8 / zoom, 1.4));
     }
     _ctx.setLineDash([]);
     _ctx.restore();
@@ -592,7 +585,7 @@ const Renderer = (() => {
       _ctx.fillStyle   = 'rgba(80, 180, 255, 0.85)';
       _ctx.fill();
       _ctx.strokeStyle = 'rgba(200, 235, 255, 0.70)';
-      _ctx.lineWidth   = 1;
+      _ctx.lineWidth   = 1 / zoom;
       _ctx.stroke();
     }
     _ctx.restore();
@@ -618,10 +611,10 @@ const Renderer = (() => {
 
       // Animated yellow dash chain on path (bergerak mengikuti waktu)
       _ctx.save();
-      const dl = Math.max(3, MathEngine.worldLenToScreen(14, zoom));
-      const gl = Math.max(2, MathEngine.worldLenToScreen(6, zoom));
+      const dl = Math.max(3 / zoom, 14);
+      const gl = Math.max(2 / zoom, 6);
       _ctx.setLineDash([dl, gl]);
-      _ctx.lineDashOffset = -_time * 40;  // Memberikan efek animasi mengalir (bergerak)
+      _ctx.lineDashOffset = -_time * 40 / zoom;  // Memberikan efek animasi mengalir (bergerak)
       _strokeLine(p, '#f5d820', MathEngine.worldLenToScreen(2.5, zoom));
       _ctx.setLineDash([]);
       _ctx.restore();
@@ -647,7 +640,7 @@ const Renderer = (() => {
 
       if (isStart || isGoal) {
         const col = isStart ? '#20cc60' : '#ee2244';
-        const r   = Math.max(8, MathEngine.worldLenToScreen(14, cam.zoomLevel));
+        const r   = Math.max(8 / cam.zoomLevel, 14);
 
         // Pulsing halo
         _ctx.beginPath();
@@ -661,15 +654,19 @@ const Renderer = (() => {
         _ctx.fillStyle   = col;
         _ctx.fill();
         _ctx.strokeStyle = '#fff';
-        _ctx.lineWidth   = 2.5;
+        _ctx.lineWidth   = 2.5 / cam.zoomLevel;
         _ctx.stroke();
 
         // A / B label
         if (cam.zoomLevel > 0.22) {
+          const minFontSize = 7 / cam.zoomLevel;
+          const maxFontSize = 13 / cam.zoomLevel;
+          const fontSize = Math.min(maxFontSize, Math.max(minFontSize, r));
+          
           _ctx.textAlign    = 'center';
           _ctx.textBaseline = 'middle';
           _ctx.fillStyle    = '#fff';
-          _ctx.font         = `bold ${Math.min(13, Math.max(7, r))}px sans-serif`;
+          _ctx.font         = `bold ${fontSize}px sans-serif`;
           _ctx.fillText(isStart ? 'A' : 'B', s.x, s.y);
           _ctx.textAlign    = 'left';
           _ctx.textBaseline = 'alphabetic';
@@ -679,7 +676,7 @@ const Renderer = (() => {
         // ── Intersection dot — visible at much lower zoom levels ──────────
         // This fulfils the requirement: "Every vertex must show a clear dot
         // to reveal the underlying graph structure."
-        const r = Math.max(2, MathEngine.worldLenToScreen(4.5, cam.zoomLevel));
+        const r = Math.max(2 / cam.zoomLevel, 4.5);
 
         // Outer ring (slate-blue, stands out from road tarmac)
         _ctx.beginPath();
@@ -711,7 +708,7 @@ const Renderer = (() => {
     const zoom = cam.zoomLevel;
     const bL   = MathEngine.worldLenToScreen(18, zoom);
     const bW   = MathEngine.worldLenToScreen(9,  zoom);
-    if (bL < 3) return;
+    if (bL * zoom < 3) return;
 
     const cos = Math.cos(angle), sin = Math.sin(angle);
     const rp = (lx, ly) => ({
@@ -724,7 +721,7 @@ const Renderer = (() => {
 
     // Body
     _fillPoly(_rotRect(s.x, s.y, bL*2, bW*2, angle), '#cc2233');
-    _strokePoly(_rotRect(s.x, s.y, bL*2, bW*2, angle), 'rgba(0,0,0,0.45)', 1.2);
+    _strokePoly(_rotRect(s.x, s.y, bL*2, bW*2, angle), 'rgba(0,0,0,0.45)', 1.2 / zoom);
 
     // Cab front darkening
     if (bL > 6) {
@@ -750,7 +747,7 @@ const Renderer = (() => {
       _ctx.fillStyle   = '#f5c518';
       _ctx.fill();
       _ctx.strokeStyle = '#888';
-      _ctx.lineWidth   = 0.8;
+      _ctx.lineWidth   = 0.8 / zoom;
       _ctx.stroke();
     }
 
@@ -762,84 +759,6 @@ const Renderer = (() => {
       _ctx.fillStyle = 'rgba(255,255,210,0.95)';
       _ctx.fill();
     }
-  }
-
-  // ─────────────────────────────────────────────────────────────
-  // LAYER 7: MINIMAP
-  // ─────────────────────────────────────────────────────────────
-
-  function _drawMinimap(world, cam, vp) {
-    if (!world.nodes || !world.islandPoly) return;
-    const cfg = MapGenerator.CFG;
-    const MW = 140, MH = 100;
-    const MX = vp.width  - MW - 12;
-    const MY = vp.height - MH - 12;
-
-    _ctx.fillStyle   = 'rgba(10,20,34,0.90)';
-    _ctx.strokeStyle = 'rgba(255,255,255,0.22)';
-    _ctx.lineWidth   = 1;
-    _ctx.fillRect(MX, MY, MW, MH);
-    _ctx.strokeRect(MX, MY, MW, MH);
-
-    const sc  = Math.min(MW / cfg.WORLD_W, MH / cfg.WORLD_H);
-    const toM = (wx, wy) => ({ x: MX + wx * sc, y: MY + wy * sc });
-
-    // Island
-    if (world.islandPoly.length > 2) {
-      _ctx.beginPath();
-      const p0 = toM(world.islandPoly[0].x, world.islandPoly[0].y);
-      _ctx.moveTo(p0.x, p0.y);
-      for (let i = 1; i < world.islandPoly.length; i++) {
-        const p = toM(world.islandPoly[i].x, world.islandPoly[i].y);
-        _ctx.lineTo(p.x, p.y);
-      }
-      _ctx.closePath();
-      _ctx.fillStyle = '#4a7830';
-      _ctx.fill();
-    }
-
-    // Roads
-    const sa = _searchAnim && !_searchAnim.done;
-    for (const e of (world.edges || [])) {
-      const pts = MathEngine.sampleBezier(e.curve, 6);
-      if (pts.length < 2) continue;
-      const isPath     = _activePathSet.has(e.id);
-      const isExplored = sa && _searchAnim.litExploredEdges && _searchAnim.litExploredEdges.has(e.id);
-      _ctx.beginPath();
-      const p0 = toM(pts[0].x, pts[0].y);
-      _ctx.moveTo(p0.x, p0.y);
-      for (let i = 1; i < pts.length; i++) {
-        const p = toM(pts[i].x, pts[i].y);
-        _ctx.lineTo(p.x, p.y);
-      }
-      _ctx.strokeStyle = isPath ? '#e08010' : (isExplored ? '#00ccdd' : ROAD_BORDER);
-      _ctx.lineWidth   = isPath ? 1.5 : (isExplored ? 1.2 : 0.8);
-      _ctx.stroke();
-    }
-
-    // Car dot
-    const car = (StateController.vehicles || [])[0];
-    if (car && car.pose) {
-      const cp = toM(car.pose.x, car.pose.y);
-      _ctx.beginPath();
-      _ctx.arc(cp.x, cp.y, 2.5, 0, MathEngine.TAU);
-      _ctx.fillStyle = '#cc2233';
-      _ctx.fill();
-    }
-
-    // Viewport rect
-    const vpAABB = StateController.getViewportAABB();
-    const vTL    = toM(vpAABB.minX, vpAABB.minY);
-    const vBR    = toM(vpAABB.maxX, vpAABB.maxY);
-    _ctx.strokeStyle = 'rgba(255,255,255,0.55)';
-    _ctx.lineWidth   = 1;
-    _ctx.strokeRect(vTL.x, vTL.y, vBR.x - vTL.x, vBR.y - vTL.y);
-
-    _ctx.fillStyle = 'rgba(255,255,255,0.28)';
-    _ctx.font      = '6px sans-serif';
-    _ctx.textAlign = 'right';
-    _ctx.fillText('MINIMAP', MX + MW - 3, MY + MH - 3);
-    _ctx.textAlign = 'left';
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -859,6 +778,19 @@ const Renderer = (() => {
     // Tick search animation
     _tickSearchAnimation(dt);
 
+    // DRAW BACKGROUND IN SCREEN SPACE
+    const oceanGrad = _ctx.createLinearGradient(0, 0, 0, vp.height);
+    oceanGrad.addColorStop(0,   OCEAN_DEEP);
+    oceanGrad.addColorStop(0.5, OCEAN_MID);
+    oceanGrad.addColorStop(1,   OCEAN_DEEP);
+    _ctx.fillStyle = oceanGrad;
+    _ctx.fillRect(0, 0, vp.width, vp.height);
+
+    // APPLY CANVAS TRANSFORMS FOR WORLD SPACE
+    _ctx.save();
+    _ctx.scale(cam.zoomLevel, cam.zoomLevel);
+    _ctx.translate(-cam.x, -cam.y);
+
     _drawOceanIsland(vp, cam, world);
     _drawBuildings(world, cam);
     _drawTrees(world, cam);
@@ -869,8 +801,8 @@ const Renderer = (() => {
     if (!(_searchAnim && !_searchAnim.done)) {
       _drawCar(car, cam);
     }
-
-    _drawMinimap(world, cam, vp);
+    
+    _ctx.restore();
   }
 
   return Object.freeze({

@@ -3,103 +3,205 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>URBS — Map Pathfinding</title>
+  <title>URBS — Urban Spatial Map &amp; A* Pathfinding</title>
+  <meta name="description" content="Simulasi Peta Kota 2D dengan algoritma pathfinding A* step-by-step. Visualisasi interaktif jalan, bangunan, dan rute kendaraan."/>
   <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
 
-  <!-- ══ CANVAS ══════════════════════════════════════════════ -->
-  <canvas id="cityCanvas"></canvas>
+  <!-- ══ CANVAS (Layer 1–6 digambar di sini) ══════════════════ -->
+  <canvas id="cityCanvas" aria-label="Peta kota interaktif 2D"></canvas>
 
-  <!-- ══ TOP NAVIGATION / DASHBOARD BAR ═════════════════════ -->
-  <nav id="topnav">
+  <!-- ══ TOP NAVIGATION BAR ════════════════════════════════════ -->
+  <nav id="topnav" role="navigation" aria-label="Panel kontrol">
 
     <!-- Brand -->
-    <div class="nav-brand">
+    <div class="nav-brand" title="URBS — Urban Spatial Map Pathfinding">
       <span class="brand-u">URB</span><span class="brand-s">S</span>
       <span class="brand-tag">Map Pathfinding</span>
     </div>
 
-    <!-- Control buttons group -->
-    <div class="nav-controls">
-
-      <!-- Preset Maps group -->
+    <!-- ── GROUP 1: Map Generation ─────────────────────────── -->
+    <div class="nav-group" role="group" aria-label="Peta">
+      <span class="group-lbl">PETA</span>
       <div class="map-preset-group">
-        <span class="preset-lbl">PETA</span>
-        <button class="nav-btn map-preset-btn" data-idx="0" title="Peta 1 [tombol 1]">1</button>
-        <button class="nav-btn map-preset-btn" data-idx="1" title="Peta 2 [tombol 2]">2</button>
-        <button class="nav-btn map-preset-btn" data-idx="2" title="Peta 3 [tombol 3]">3</button>
-        <button class="nav-btn map-preset-btn" data-idx="3" title="Peta 4 [tombol 4]">4</button>
-        <button class="nav-btn map-preset-btn" data-idx="4" title="Peta 5 [tombol 5]">5</button>
-        <button class="nav-btn" id="btn-acak" title="Peta seed acak">⟳ Acak</button>
+        <span class="preset-lbl">PRESET</span>
+        <button class="nav-btn map-preset-btn" id="btn-map-1" data-idx="0" title="Peta 1 [tombol 1]" aria-pressed="false">1</button>
+        <button class="nav-btn map-preset-btn" id="btn-map-2" data-idx="1" title="Peta 2 [tombol 2]" aria-pressed="false">2</button>
+        <button class="nav-btn map-preset-btn" id="btn-map-3" data-idx="2" title="Peta 3 [tombol 3]" aria-pressed="false">3</button>
+        <button class="nav-btn map-preset-btn" id="btn-map-4" data-idx="3" title="Peta 4 [tombol 4]" aria-pressed="false">4</button>
+        <button class="nav-btn map-preset-btn" id="btn-map-5" data-idx="4" title="Peta 5 [tombol 5]" aria-pressed="false">5</button>
       </div>
-
-      <div class="nav-sep"></div>
-
-      <button class="nav-btn btn-a" id="btn-set-start" title="Pilih node awal (Start A)">
-        ▲ Set Start
-      </button>
-      <button class="nav-btn btn-b" id="btn-set-end" title="Pilih node tujuan (End B)">
-        ▼ Set End
-      </button>
-
-      <div class="nav-sep"></div>
-
-      <button class="nav-btn btn-play" id="btn-track" title="Mulai / Pause animasi kendaraan" disabled>
-        ▶ Start Track
-      </button>
-      <button class="nav-btn btn-reset" id="btn-reset" title="Reset posisi kendaraan dan jalur">
-        ↺ Reset
+      <!-- Tombol 1: Random Map -->
+      <button class="nav-btn btn-accent" id="btn-acak" title="Generate peta dengan seed acak [R]" aria-label="Random Map">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/></svg>
+        Acak
       </button>
     </div>
 
-    <!-- Stats group -->
-    <div class="nav-stats">
+    <div class="nav-sep" role="separator"></div>
+
+    <!-- ── GROUP 2: Titik Asal & Tujuan ─────────────────────── -->
+    <div class="nav-group" role="group" aria-label="Titik awal dan akhir">
+      <span class="group-lbl">RUTE</span>
+      <!-- Tombol 2: Set Start -->
+      <button class="nav-btn btn-a" id="btn-set-start" title="Pilih titik Start / asal [S]" aria-label="Set Start" aria-pressed="false">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+        Set Start
+      </button>
+      <!-- Tombol 3: Set End -->
+      <button class="nav-btn btn-b" id="btn-set-end" title="Pilih titik End / tujuan [E]" aria-label="Set End" aria-pressed="false">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+        Set End
+      </button>
+    </div>
+
+    <div class="nav-sep" role="separator"></div>
+
+    <!-- ── GROUP 3: A* Pathfinding Control ──────────────────── -->
+    <div class="nav-group" role="group" aria-label="Kontrol A* Pathfinding">
+      <span class="group-lbl">A*</span>
+      <!-- Tombol 4: Start A* -->
+      <button class="nav-btn btn-astar" id="btn-start-astar" title="Mulai algoritma A* Pathfinding [A]" aria-label="Start A*" disabled>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Start A*
+      </button>
+      <!-- Tombol 5: Pause / Resume Visualization -->
+      <button class="nav-btn btn-astar-pause" id="btn-pause-astar" title="Pause / Resume visualisasi A* [P]" aria-label="Pause A*" disabled>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+        Pause
+      </button>
+      <!-- Tombol 6: Next Step -->
+      <button class="nav-btn btn-step" id="btn-next-step" title="Maju satu langkah A* [N / →]" aria-label="Next Step" disabled>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+        Next Step
+      </button>
+      <!-- Tombol 7: Reset Pathfinding -->
+      <button class="nav-btn btn-reset-path" id="btn-reset-path" title="Reset jalur dan visualisasi A* [Backspace]" aria-label="Reset Path">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.53"/></svg>
+        Reset
+      </button>
+    </div>
+
+    <div class="nav-sep" role="separator"></div>
+
+    <!-- ── GROUP 4: Vehicle / Drive Control ─────────────────── -->
+    <div class="nav-group" role="group" aria-label="Kontrol kendaraan">
+      <span class="group-lbl">DRIVE</span>
+      <!-- Tombol 8: Start Drive -->
+      <!-- Tombol 9: Pause Drive -->
+      <button class="nav-btn btn-play" id="btn-track" title="Start / Pause animasi kendaraan [Space]" aria-label="Start Track" disabled>
+        <svg class="icon-play" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        <svg class="icon-pause" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="display:none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+        <span class="btn-track-label">Start Track</span>
+      </button>
+      <!-- Tombol 10: Reset Drive -->
+      <button class="nav-btn btn-reset" id="btn-reset" title="Reset posisi kendaraan ke Start [X]" aria-label="Reset Drive">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.53"/></svg>
+        Reset
+      </button>
+    </div>
+
+    <div class="nav-sep" role="separator"></div>
+
+    <!-- ── GROUP 5: View Controls ────────────────────────────── -->
+    <div class="nav-group" role="group" aria-label="Tampilan">
+      <span class="group-lbl">VIEW</span>
+      <!-- Tombol 11: Zoom In -->
+      <button class="nav-btn btn-zoom" id="btn-zoom-in" title="Zoom In [+ / scroll atas]" aria-label="Zoom In">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+        Zoom+
+      </button>
+      <!-- Tombol 12: Zoom Out -->
+      <button class="nav-btn btn-zoom" id="btn-zoom-out" title="Zoom Out [- / scroll bawah]" aria-label="Zoom Out">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+        Zoom-
+      </button>
+      <!-- Tombol 13: Mode Siang / Malam -->
+      <button class="nav-btn btn-daynight" id="btn-daynight" title="Toggle Mode Siang / Malam [L]" aria-label="Toggle Siang/Malam" aria-pressed="false">
+        <svg class="icon-sun" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        <svg class="icon-moon" width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="display:none"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <span class="btn-daynight-label">Siang</span>
+      </button>
+    </div>
+
+    <!-- ── Stats HUD ──────────────────────────────────────────── -->
+    <div class="nav-stats" role="status" aria-live="polite" aria-label="Statistik rute">
       <div class="stat-item">
         <span class="stat-lbl">NODE JALUR</span>
-        <span class="stat-val" id="st-node-jalur">—</span>
+        <span class="stat-val" id="st-node-jalur" aria-label="Jumlah node jalur">—</span>
       </div>
       <div class="stat-item">
         <span class="stat-lbl">EDGE JALUR</span>
-        <span class="stat-val" id="st-edge-jalur">—</span>
+        <span class="stat-val" id="st-edge-jalur" aria-label="Jumlah edge jalur">—</span>
       </div>
       <div class="stat-item">
         <span class="stat-lbl">JARAK RUTE</span>
-        <span class="stat-val" id="st-jarak">—</span>
+        <span class="stat-val" id="st-jarak" aria-label="Jarak rute">—</span>
       </div>
       <div class="stat-item">
         <span class="stat-lbl">WAKTU CARI</span>
-        <span class="stat-val" id="st-waktu">—</span>
+        <span class="stat-val" id="st-waktu" aria-label="Waktu komputasi A*">—</span>
       </div>
       <div class="stat-item">
         <span class="stat-lbl">DIKUNJUNGI</span>
-        <span class="stat-val" id="st-visited">—</span>
+        <span class="stat-val" id="st-visited" aria-label="Node yang dikunjungi A*">—</span>
       </div>
     </div>
 
     <!-- FPS badge -->
-    <div class="nav-fps">
-      FPS <span id="st-fps">—</span>
+    <div class="nav-fps" aria-label="Frame per detik" title="Frames per second">
+      FPS <span id="st-fps" aria-live="off">—</span>
     </div>
 
   </nav><!-- /topnav -->
 
-  <!-- ══ STATUS BAR (below canvas) ═══════════════════════════ -->
-  <div id="statusbar">
+  <!-- ══ STATUS BAR (bottom) ══════════════════════════════════ -->
+  <footer id="statusbar" role="status" aria-live="polite">
     <span id="status-msg">Siap — pilih peta, lalu Set Start &amp; End</span>
-    <span id="status-seed">Seed: 1234</span>
-  </div>
+    <div class="status-right">
+      <span id="status-mode" class="status-badge">☀ SIANG</span>
+      <span id="status-seed">Seed: 1234</span>
+    </div>
+  </footer>
 
-  <!-- Toast -->
-  <div id="toast"></div>
+  <!-- ══ ZOOM FLOATING PANEL (alternatif tombol floating) ══════ -->
+  <!-- Dihapus: sudah diintegrasikan ke topnav -->
 
-  <!-- Debug panel (D key) -->
-  <div id="debug-panel" class="hidden">
-    <div class="dbg-hdr">DEBUG</div>
-    <pre id="debug-log"></pre>
-  </div>
+  <!-- ══ TOAST NOTIFICATION ════════════════════════════════════ -->
+  <div id="toast" role="alert" aria-live="assertive" aria-atomic="true"></div>
 
-  <!-- Module scripts -->
+  <!-- ══ DEBUG PANEL (tekan D untuk toggle) ════════════════════ -->
+  <aside id="debug-panel" class="hidden" aria-label="Debug panel" aria-hidden="true">
+    <div class="dbg-hdr">DEBUG <span class="dbg-hint">tekan D untuk tutup</span></div>
+    <pre id="debug-log" aria-label="Debug log"></pre>
+  </aside>
+
+  <!-- ══ LEGEND PANEL ══════════════════════════════════════════ -->
+  <aside id="legend-panel" aria-label="Legenda warna visualisasi A*">
+    <div class="legend-item">
+      <span class="legend-dot" style="background:#1e8cff;box-shadow:0 0 6px #1e8cff88"></span>
+      <span>OPEN LIST (Dieksplorasi)</span>
+    </div>
+    <div class="legend-item">
+      <span class="legend-dot" style="background:#f5c518;box-shadow:0 0 6px #f5c51888"></span>
+      <span>CLOSED LIST (Sudah Diproses)</span>
+    </div>
+    <div class="legend-item">
+      <span class="legend-dot" style="background:#e89018;box-shadow:0 0 6px #e8901888"></span>
+      <span>PATH (Jalur Optimal)</span>
+    </div>
+    <div class="legend-item">
+      <span class="legend-dot" style="background:#20cc60;box-shadow:0 0 6px #20cc6088"></span>
+      <span>START NODE (A)</span>
+    </div>
+    <div class="legend-item">
+      <span class="legend-dot" style="background:#ee2244;box-shadow:0 0 6px #ee224488"></span>
+      <span>END NODE (B)</span>
+    </div>
+  </aside>
+
+  <!-- ══ MODULE SCRIPTS (urutan penting: dependensi dulu) ════ -->
   <script src="src/StateController.js"></script>
   <script src="src/MathEngine.js"></script>
   <script src="src/MapGenerator.js"></script>

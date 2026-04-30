@@ -63,8 +63,8 @@ const MathEngine = (() => {
    */
   function worldToScreen(wx, wy, cam) {
     return {
-      x: (wx - cam.x) * cam.zoomLevel,
-      y: (wy - cam.y) * cam.zoomLevel,
+      x: wx,
+      y: wy,
     };
   }
 
@@ -89,7 +89,7 @@ const MathEngine = (() => {
    * @returns {number}
    */
   function worldLenToScreen(worldLen, zoomLevel) {
-    return worldLen * zoomLevel;
+    return worldLen;
   }
 
   /**

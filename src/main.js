@@ -46,6 +46,8 @@
   let _pathReady    = false;
   let _searchResult = null;   // stored A* result for animation then driving
   let _activeMapIdx = 0;
+  let _isNightMode  = false;  // Siang (false) / Malam (true)
+  let _astarPaused  = false;  // Pause state untuk visualisasi A*
 
   // ─────────────────────────────────────────────────────────────
   // DOM SHORTCUTS
@@ -153,6 +155,7 @@
 
     // Store result — but DON'T show path yet; play search animation first
     _searchResult = result;
+    _astarPaused  = false;
 
     // Update stats immediately (computation time)
     const distKm  = (result.totalLength / 100).toFixed(2);
@@ -162,11 +165,16 @@
     T('st-waktu',      ms + ' ms');
     T('st-visited',    result.visited ?? '—');
 
-    // Disable track button temporarily...? No, enable it to "Start Track"!
+    // Enable drive + A* control buttons
     const btn = $('btn-track');
     btn.disabled     = false;
-    btn.textContent  = '▶ Start Track';
     btn.classList.remove('is-paused');
+    const trackLabel = btn.querySelector('.btn-track-label');
+    if (trackLabel) trackLabel.textContent = '▶ Start Track';
+
+    _syncAstarButtons(true);
+    const btnAstar = $('btn-start-astar');
+    if (btnAstar) btnAstar.classList.remove('is-running');
 
     _status(`A* selesai (${ms}ms) — Pra-kalkulasi siap. Klik Start Track.`, 'active');
     _toast('✓ A* selesai! Klik Start Track untuk animasi jalur.');
@@ -185,7 +193,8 @@
     _paused = true;
     const btn = $('btn-track');
     if (btn) {
-      btn.textContent = '▶ Ulangi';
+      const label = btn.querySelector('.btn-track-label');
+      if (label) label.textContent = '▶ Ulangi';
       btn.classList.remove('is-paused');
       btn.disabled = false;
     }
@@ -249,7 +258,15 @@
       _toast(`▲ Start ditetapkan: Node #${node.id}`);
       _exitPickMode();
       _status(`Start = Node #${_startId}${_goalId >= 0 ? ' — menghitung rute…' : ' — sekarang pilih End'}`, 'active');
-      if (_goalId >= 0) { _car = null; $('btn-track').disabled = true; setTimeout(_runRoute, 20); }
+      if (_goalId >= 0) {
+        // Enable Start A* button now that both endpoints are set
+        const btnAstar = $('btn-start-astar');
+        if (btnAstar) btnAstar.disabled = false;
+        _car = null;
+        const btnTrack = $('btn-track');
+        if (btnTrack) btnTrack.disabled = true;
+        setTimeout(_runRoute, 20);
+      }
     } else if (_pickMode === PICK.END) {
       _goalId = node.id;
       Renderer.setActivePath(null, _startId, _goalId);
@@ -257,7 +274,14 @@
       _toast(`▼ End ditetapkan: Node #${node.id}`);
       _exitPickMode();
       _status(`End = Node #${_goalId}${_startId >= 0 ? ' — menghitung rute…' : ' — sekarang pilih Start'}`, 'active');
-      if (_startId >= 0) { _car = null; $('btn-track').disabled = true; setTimeout(_runRoute, 20); }
+      if (_startId >= 0) {
+        const btnAstar = $('btn-start-astar');
+        if (btnAstar) btnAstar.disabled = false;
+        _car = null;
+        const btnTrack = $('btn-track');
+        if (btnTrack) btnTrack.disabled = true;
+        setTimeout(_runRoute, 20);
+      }
     }
   });
 
@@ -270,6 +294,16 @@
   // ─────────────────────────────────────────────────────────────
   // BUTTON WIRING
   // ─────────────────────────────────────────────────────────────
+
+  // ── Helper: sync A* button states setelah route dihitung ────────────────
+  function _syncAstarButtons(hasResult) {
+    const btnAstar = $('btn-start-astar');
+    const btnPause = $('btn-pause-astar');
+    const btnStep  = $('btn-next-step');
+    if (btnAstar) { btnAstar.disabled = false; btnAstar.classList.remove('is-running'); }
+    if (btnPause) { btnPause.disabled = !hasResult; }
+    if (btnStep)  { btnStep.disabled  = !hasResult; }
+  }
 
   // Preset map buttons (1–5)
   document.querySelectorAll('.map-preset-btn').forEach((btn, idx) => {
@@ -312,6 +346,107 @@
     _enterPickMode(PICK.END);
   });
 
+  // ── Tombol 4: Start A* ──────────────────────────────────────────────────
+  $('btn-start-astar')?.addEventListener('click', () => {
+    if (_startId < 0 || _goalId < 0) {
+      _toast('⚠ Pilih titik Start dan End terlebih dahulu!');
+      _status('Pilih Start & End sebelum menjalankan A*', 'warn');
+      return;
+    }
+    if (Renderer.isSearchAnimating()) {
+      _toast('⏳ Visualisasi A* sedang berjalan…');
+      return;
+    }
+    _runRoute();
+    StateController.debugLog('btn-start-astar: A* triggered');
+  });
+
+  // ── Tombol 5: Pause / Resume Visualisasi A* ─────────────────────────────
+  $('btn-pause-astar')?.addEventListener('click', () => {
+    if (!Renderer.isSearchAnimating()) {
+      _toast('A* tidak sedang berjalan');
+      return;
+    }
+    _astarPaused = !_astarPaused;
+    // Toggle pause state di Renderer (stub — akan diimplementasi di Renderer.js)
+    if (typeof Renderer.setSearchPaused === 'function') {
+      Renderer.setSearchPaused(_astarPaused);
+    }
+    const btn = $('btn-pause-astar');
+    if (btn) {
+      btn.textContent = _astarPaused ? '▶ Resume' : '⏸ Pause';
+    }
+    _status(_astarPaused ? 'Visualisasi A* dijeda' : 'Visualisasi A* dilanjutkan…', _astarPaused ? '' : 'active');
+    _toast(_astarPaused ? '⏸ A* Dijeda' : '▶ A* Dilanjutkan');
+    StateController.debugLog(`A* ${_astarPaused ? 'paused' : 'resumed'}`);
+  });
+
+  // ── Tombol 6: Next Step (maju satu langkah visualisasi A*) ──────────────
+  $('btn-next-step')?.addEventListener('click', () => {
+    if (!_searchResult) {
+      _toast('⚠ Jalankan A* terlebih dahulu');
+      return;
+    }
+    if (!_astarPaused) {
+      _toast('⏸ Pause dulu sebelum pakai Next Step');
+      return;
+    }
+    // Trigger single step di Renderer (stub — akan diimplementasi di Renderer.js)
+    if (typeof Renderer.stepSearchAnimation === 'function') {
+      Renderer.stepSearchAnimation();
+    }
+    _toast('→ Langkah berikutnya');
+    StateController.debugLog('A* next step');
+  });
+
+  // ── Tombol 7: Reset Path ─────────────────────────────────────────────────
+  $('btn-reset-path')?.addEventListener('click', () => {
+    Renderer.stopSearchAnimation();
+    Renderer.setActivePath(null, -1, -1);
+    _searchResult = null;
+    _pathReady    = false;
+    _astarPaused  = false;
+    if (_car) { StateController.removeVehicle(0); _car = null; }
+    _paused       = true;
+
+    // Reset A* control buttons
+    const btnAstar = $('btn-start-astar');
+    if (btnAstar) { btnAstar.disabled = (_startId < 0 || _goalId < 0); btnAstar.classList.remove('is-running'); }
+    const btnPause = $('btn-pause-astar');
+    if (btnPause) { btnPause.disabled = true; btnPause.textContent = '⏸ Pause'; }
+    const btnStep  = $('btn-next-step');
+    if (btnStep)  { btnStep.disabled  = true; }
+    const btnTrack = $('btn-track');
+    if (btnTrack) { btnTrack.disabled = true; btnTrack.classList.remove('is-paused'); }
+
+    ['st-node-jalur', 'st-edge-jalur', 'st-jarak', 'st-waktu', 'st-visited'].forEach(id => T(id, '—'));
+    _status('Path direset — pilih Start & End lalu Start A*', '');
+    _toast('↺ Path direset');
+    StateController.debugLog('Path reset');
+  });
+
+  // ── Tombol 13: Mode Siang / Malam ────────────────────────────────────────
+  $('btn-daynight')?.addEventListener('click', () => {
+    _isNightMode = !_isNightMode;
+    document.body.classList.toggle('night-mode', _isNightMode);
+
+    const btn   = $('btn-daynight');
+    const badge = $('status-mode');
+    const label = btn?.querySelector('.btn-daynight-label');
+
+    if (btn)   btn.classList.toggle('is-night', _isNightMode);
+    if (label) label.textContent = _isNightMode ? 'Malam' : 'Siang';
+    if (badge) {
+      badge.textContent = _isNightMode ? '🌙 MALAM' : '☀ SIANG';
+      badge.classList.toggle('night', _isNightMode);
+    }
+
+    // Notify StateController / Renderer bila ada
+    StateController.emit('mode:daynight', { night: _isNightMode });
+    _toast(_isNightMode ? '🌙 Mode Malam aktif' : '☀ Mode Siang aktif');
+    StateController.debugLog(`DayNight → ${_isNightMode ? 'NIGHT' : 'DAY'}`);
+  });
+
   // Start / Pause / Resume / Replay
   $('btn-track')?.addEventListener('click', () => {
     const btn = $('btn-track');
@@ -320,7 +455,8 @@
     // Guard: searchResult exists, path NOT ready yet, and no animation running.
     if (_searchResult && !_pathReady && !Renderer.isSearchAnimating()) {
       btn.disabled    = true;
-      btn.textContent = '⏳ Mencari rute…';
+      const trackLabel = btn.querySelector('.btn-track-label');
+      if (trackLabel) trackLabel.textContent = '⏳ Mencari rute…';
       _status('Menampilkan proses pencarian algoritma A*…', 'active');
 
       Renderer.startSearchAnimation(_searchResult, () => {
@@ -334,14 +470,11 @@
         StateController.registerVehicle(_car);
         _pathReady = true;
 
-        // ── DIRECT START — no setTimeout, no btn.click() ──────────────────
-        // Setting _paused = false here is synchronous and atomic: the RAF
-        // loop reads _paused AFTER this callback returns, so there is never
-        // a frame where the car ticks unexpectedly.
         _paused = false;
 
         btn.disabled    = false;
-        btn.textContent = '⏸ Pause Track';
+        const tLabel = btn.querySelector('.btn-track-label');
+        if (tLabel) tLabel.textContent = '⏸ Pause Track';
         btn.classList.remove('is-paused');
 
         const distKm = (_searchResult.totalLength / 100).toFixed(2);
@@ -361,7 +494,8 @@
     if (_car.done) _car.reset();
 
     _paused = !_paused;
-    btn.textContent = _paused ? '▶ Lanjut Track' : '⏸ Pause Track';
+    const trackLabel2 = btn.querySelector('.btn-track-label');
+    if (trackLabel2) trackLabel2.textContent = _paused ? '▶ Lanjut Track' : '⏸ Pause Track';
     btn.classList.toggle('is-paused', _paused);
     _status(
       _paused ? 'Dijeda — klik lagi untuk lanjut' : 'Kendaraan bergerak…',
@@ -415,8 +549,9 @@
     safeGet('btn-set-end')?.classList.remove('active');
     const trackBtn = safeGet('btn-track');
     if (trackBtn) {
-      trackBtn.disabled   = true;
-      trackBtn.textContent = '▶ Start Track';
+      trackBtn.disabled = true;
+      const tLabel = trackBtn.querySelector('.btn-track-label');
+      if (tLabel) tLabel.textContent = '▶ Start Track';
       trackBtn.classList.remove('is-paused');
     }
 
@@ -430,6 +565,9 @@
   // ─────────────────────────────────────────────────────────────
 
   window.addEventListener('keydown', e => {
+    // Skip shortcuts when typing in an input
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
     switch (e.key.toUpperCase()) {
       case 'F':
         StateController.resetCamera(); break;
@@ -438,7 +576,9 @@
         $('btn-track')?.click(); break;
       case 'D':
         StateController.debug.enabled = !StateController.debug.enabled;
-        $('debug-panel')?.classList.toggle('hidden', !StateController.debug.enabled); break;
+        $('debug-panel')?.classList.toggle('hidden', !StateController.debug.enabled);
+        $('debug-panel')?.setAttribute('aria-hidden', String(!StateController.debug.enabled));
+        break;
       case 'ESCAPE':
         _exitPickMode();
         _status('Esc — pemilihan dibatalkan', ''); break;
@@ -448,6 +588,18 @@
         document.querySelectorAll('.map-preset-btn')[idx]?.click();
         break;
       }
+      // A* shortcuts
+      case 'A': $('btn-start-astar')?.click(); break;
+      case 'P': $('btn-pause-astar')?.click(); break;
+      case 'N': case 'ARROWRIGHT': $('btn-next-step')?.click(); break;
+      case 'BACKSPACE': $('btn-reset-path')?.click(); break;
+      // Day/Night shortcut
+      case 'L': $('btn-daynight')?.click(); break;
+      // Set start/end shortcuts
+      case 'S': $('btn-set-start')?.click(); break;
+      case 'E': $('btn-set-end')?.click(); break;
+      // Random map
+      case 'R': $('btn-acak')?.click(); break;
     }
   });
 
@@ -463,6 +615,17 @@
   StateController.resetCamera();
   // Mark first map button as active
   document.querySelectorAll('.map-preset-btn')[0]?.classList.add('active-map');
+
+  // Initial A* button states (disabled until Start+End set)
+  const _initAstar = () => {
+    const btnAstar = $('btn-start-astar');
+    if (btnAstar) btnAstar.disabled = true;  // waits for start+end
+    const btnPause = $('btn-pause-astar');
+    if (btnPause) btnPause.disabled = true;
+    const btnStep  = $('btn-next-step');
+    if (btnStep)  btnStep.disabled  = true;
+  };
+  _initAstar();
 
   _status('Siap — pilih peta, lalu Set Start & End', '');
 

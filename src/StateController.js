@@ -483,6 +483,20 @@ const StateController = (() => {
     window.addEventListener('keydown', _onKeyDown);
     window.addEventListener('resize',  _onResize);
 
+    // Zoom Buttons
+    const btnZoomIn  = document.getElementById('btn-zoom-in');
+    const btnZoomOut = document.getElementById('btn-zoom-out');
+    if (btnZoomIn) {
+      btnZoomIn.addEventListener('click', () => {
+        setCameraZoom(_camera.zoomLevel * (1 + CONFIG.ZOOM_STEP_KEY));
+      });
+    }
+    if (btnZoomOut) {
+      btnZoomOut.addEventListener('click', () => {
+        setCameraZoom(_camera.zoomLevel * (1 - CONFIG.ZOOM_STEP_KEY));
+      });
+    }
+
     // Initial size pass
     _onResize();
 
