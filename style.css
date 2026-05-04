@@ -302,6 +302,15 @@ html, body {
   50%     { box-shadow: 0 0 14px rgba(238,34,68,0.55); }
 }
 
+/* ── Random Rute — orange/shuffle ───────────────────────────── */
+.btn-rndroute { border-color: rgba(255,144,32,0.28); color: rgba(255,164,60,0.85); }
+.btn-rndroute:hover:not(:disabled) {
+  border-color: var(--orange);
+  color: var(--orange);
+  background: rgba(255,144,32,0.09);
+  box-shadow: 0 0 10px rgba(255,144,32,0.22);
+}
+
 /* ── A* Start — blue ────────────────────────────────────────── */
 .btn-astar {
   border-color: rgba(30,140,255,0.28);
@@ -655,11 +664,11 @@ html, body {
 .hidden { display: none !important; }
 
 /* ══════════════════════════════════════════════════════════════
-   NIGHT MODE CANVAS FILTER
+   NIGHT MODE — render ditangani sepenuhnya oleh Renderer.js
+   (setNightMode). CSS filter dinonaktifkan agar tidak
+   mempengaruhi warna canvas yang sudah dirender secara native.
 ══════════════════════════════════════════════════════════════ */
-body.night-mode #cityCanvas {
-  filter: brightness(0.75) saturate(0.7) hue-rotate(20deg);
-}
+/* body.night-mode #cityCanvas { filter: ... } ← dinonaktifkan */
 
 /* ══════════════════════════════════════════════════════════════
    RESPONSIVE — hide labels at narrow widths

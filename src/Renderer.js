@@ -30,7 +30,11 @@ const Renderer = (() => {
   let _goalNodeId    = -1;
 
   // Search animation state
-  let _searchAnim = null;
+  let _searchAnim  = null;
+  let _searchPaused = false;  // true = animasi A* dijeda manual
+
+  // Day / Night mode
+  let _isNight = false;
   // _searchAnim = {
   //   visitedSequence: [...],   // all nodes visited by A*
   //   exploredEdges: [...],     // edge IDs explored
@@ -49,15 +53,24 @@ const Renderer = (() => {
   const ROAD_FILL   = '#5c606e';
   const ROAD_DASH   = 'rgba(255,255,255,0.85)';
 
-  // ── Ocean / island colours ─────────────────────────────────
-  const OCEAN_DEEP    = '#0e2235';
-  const OCEAN_MID     = '#152e42';
-  const OCEAN_SURF    = '#1a3550';
+  // ── Ocean / island colours (DAY) ──────────────────────────
+  const OCEAN_DEEP    = '#32aee0';
+  const OCEAN_MID     = '#50c8f2';
+  const OCEAN_SURF    = '#6cd8f8';
   const ISLAND_C0     = '#7ec85a';
   const ISLAND_C1     = '#68b048';
   const ISLAND_C2     = '#548c38';
   const ISLAND_C3     = '#3e6c28';
   const BEACH_COLOR   = '#d4c272';
+
+  // ── Ocean / island colours (NIGHT) ─────────────────────────
+  const NIGHT_OCEAN_A = '#02080f';
+  const NIGHT_OCEAN_B = '#040d1c';
+  const NIGHT_ISL_C0  = '#253a20';
+  const NIGHT_ISL_C1  = '#182a14';
+  const NIGHT_ISL_C2  = '#0f1d0c';
+  const NIGHT_ISL_C3  = '#081208';
+  const NIGHT_BEACH   = '#6a5e22';
 
   // ── Building palettes (cartoon vibrant) ──────────────────────
   const WALL_COLORS = [
@@ -109,6 +122,7 @@ const Renderer = (() => {
     const nodeCount = Math.max(1, (result.visitedSequence || []).length);
     const stepDelay = Math.max(0.08, Math.min(0.22, 5.0 / nodeCount)) / factor;
 
+    _searchPaused = false;  // reset pause saat animasi baru dimulai
     _searchAnim = {
       visitedSequence:  result.visitedSequence || [],
       exploredEdges:    new Set(result.exploredEdges || []),
@@ -127,11 +141,58 @@ const Renderer = (() => {
   }
 
   function stopSearchAnimation() {
-    _searchAnim = null;
+    _searchAnim   = null;
+    _searchPaused = false;
   }
 
   function isSearchAnimating() {
     return _searchAnim !== null && !_searchAnim.done;
+  }
+
+  /**
+   * Pause / resume animasi A* step-by-step.
+   * @param {boolean} paused
+   */
+  function setSearchPaused(paused) {
+    _searchPaused = !!paused;
+  }
+
+  /** Aktifkan / nonaktifkan mode render malam. */
+  function setNightMode(night) {
+    _isNight = !!night;
+  }
+
+  /**
+   * Majukan animasi A* sebanyak 1 langkah secara manual.
+   * Hanya bekerja saat animasi sedang berjalan DAN dijeda.
+   */
+  function stepSearchAnimation() {
+    if (!_searchAnim || _searchAnim.done || _searchAnim.phase !== 'explore') return;
+    const sa = _searchAnim;
+    if (sa.stepIndex >= sa.visitedSequence.length) return;
+
+    // Tambahkan 1 node ke litNodes
+    const node = sa.visitedSequence[sa.stepIndex];
+    sa.litNodes.add(node.nodeId);
+    sa.stepIndex++;
+    sa.stepTimer = 0;  // reset timer agar tidak langsung loncat saat resume
+
+    // Rebuild litExploredEdges berdasarkan litNodes yang sudah diperbarui
+    const world = StateController.world;
+    if (world && world.edges) {
+      sa.litExploredEdges = new Set();
+      for (const e of world.edges) {
+        if (sa.exploredEdges.has(e.id)) {
+          if (sa.litNodes.has(e.from) || sa.litNodes.has(e.to))
+            sa.litExploredEdges.add(e.id);
+        }
+      }
+    }
+
+    // Jika semua node sudah diproses, masuk fase reveal
+    if (sa.stepIndex >= sa.visitedSequence.length) {
+      sa.phase = 'reveal';
+    }
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -227,21 +288,28 @@ const Renderer = (() => {
     _fillPoly(poly, 'rgba(0,0,0,0.01)');
     _ctx.restore();
 
-    // Island fill: rich radial green gradient
+    // Island fill: radial gradient (warna berbeda siang/malam)
     const cen = MathEngine.worldToScreen(cfg.WORLD_W * 0.5, cfg.WORLD_H * 0.5, cam);
     const rad = MathEngine.worldLenToScreen(
       Math.max(cfg.ISLAND_W, cfg.ISLAND_H) * 1.25, cam.zoomLevel
     );
     const fillGrad = _ctx.createRadialGradient(cen.x, cen.y, 0, cen.x, cen.y, rad);
-    fillGrad.addColorStop(0,    ISLAND_C0);
-    fillGrad.addColorStop(0.45, ISLAND_C1);
-    fillGrad.addColorStop(0.80, ISLAND_C2);
-    fillGrad.addColorStop(1,    ISLAND_C3);
+    if (_isNight) {
+      fillGrad.addColorStop(0,    NIGHT_ISL_C0);
+      fillGrad.addColorStop(0.45, NIGHT_ISL_C1);
+      fillGrad.addColorStop(0.80, NIGHT_ISL_C2);
+      fillGrad.addColorStop(1,    NIGHT_ISL_C3);
+    } else {
+      fillGrad.addColorStop(0,    ISLAND_C0);
+      fillGrad.addColorStop(0.45, ISLAND_C1);
+      fillGrad.addColorStop(0.80, ISLAND_C2);
+      fillGrad.addColorStop(1,    ISLAND_C3);
+    }
     _fillPoly(poly, fillGrad);
 
-    // Sandy beach ring
+    // Beach ring
     const beachW = Math.max(2 / cam.zoomLevel, 14);
-    _strokePoly(poly, BEACH_COLOR, beachW);
+    _strokePoly(poly, _isNight ? NIGHT_BEACH : BEACH_COLOR, beachW);
 
     // Coastal vignette (clipped to island)
     _ctx.save();
@@ -367,7 +435,15 @@ const Renderer = (() => {
       for (let c = 0; c < cols; c++) {
         const wx = startX + c * stepW;
         const wy = startY + r * stepH;
-        _ctx.fillStyle = color;
+        if (_isNight) {
+          // Glow halo (rect lebih besar, sangat transparan)
+          _ctx.fillStyle = 'rgba(255,185,40,0.22)';
+          _ctx.fillRect(wx - winW, wy - winH, winW * 2, winH * 2);
+          // Jendela menyala kuning/oranye
+          _ctx.fillStyle = 'rgba(255,200,60,0.94)';
+        } else {
+          _ctx.fillStyle = color;
+        }
         _ctx.fillRect(wx - winW * 0.5, wy - winH * 0.5, winW, winH);
       }
     }
@@ -413,6 +489,46 @@ const Renderer = (() => {
         _ctx.arc(s.x - sr * 0.27, s.y - sr * 0.22, sr * 0.44, 0, MathEngine.TAU);
         _ctx.fillStyle = '#62d870';
         _ctx.fill();
+      }
+    }
+  }
+
+  // ───────────────────────────────────────────────────────────────
+  // LAYER 3b: PARKS (taman / lapangan — di atas pulau, di bawah jalan)
+  // ───────────────────────────────────────────────────────────────
+
+  function _drawParks(world, cam) {
+    if (!world.parks || !world.parks.length) return;
+    const aabb = StateController.getViewportAABB();
+    const zoom = cam.zoomLevel;
+
+    for (const p of world.parks) {
+      if (p.x < aabb.minX - 90 || p.x > aabb.maxX + 90 ||
+          p.y < aabb.minY - 90 || p.y > aabb.maxY + 90) continue;
+
+      const s  = MathEngine.worldToScreen(p.x, p.y, cam);
+      const sw = MathEngine.worldLenToScreen(p.w, zoom);
+      const sh = MathEngine.worldLenToScreen(p.h, zoom);
+      if (sw * zoom < 4) continue;
+      const hw = sw * 0.5, hh = sh * 0.5;
+
+      // Base grass
+      _ctx.fillStyle = _isNight ? '#192d12' : '#56a83c';
+      _ctx.fillRect(s.x - hw, s.y - hh, sw, sh);
+      // Inner lighter patch
+      _ctx.fillStyle = _isNight ? '#203818' : '#6dbf4a';
+      _ctx.fillRect(s.x - hw * 0.72, s.y - hh * 0.72, sw * 0.72, sh * 0.72);
+      // Border
+      _ctx.strokeStyle = _isNight ? '#2a4a1a' : '#3d8c28';
+      _ctx.lineWidth   = Math.max(1, 2 / zoom);
+      _ctx.strokeRect(s.x - hw, s.y - hh, sw, sh);
+      // Cross-shaped walkway
+      if (sw > 10 && zoom > 0.20) {
+        _ctx.fillStyle = _isNight ? '#4a4030' : '#c8b85a';
+        const pw = Math.max(1.5, sw * 0.10);
+        const ph = Math.max(1.5, sh * 0.10);
+        _ctx.fillRect(s.x - hw, s.y - ph * 0.5, sw, ph);
+        _ctx.fillRect(s.x - pw * 0.5, s.y - hh, pw, sh);
       }
     }
   }
@@ -486,6 +602,7 @@ const Renderer = (() => {
 
   function _tickSearchAnimation(dt) {
     if (!_searchAnim || _searchAnim.done) return;
+    if (_searchPaused) return;  // jeda manual — biarkan stepSearchAnimation yang mengontrol
     const sa = _searchAnim;
 
     if (sa.phase === 'explore') {
@@ -548,16 +665,16 @@ const Renderer = (() => {
         const p    = MathEngine.curveToScreenPolyline(e.curve, cam, aabb, segs, RW);
         if (!p || p.length < 2) continue;
 
-        // Layer 1: Glow lebar biru gelap (halo)
-        _strokeLine(p, 'rgba(0, 80, 220, 0.28)',
+        // Layer 1: Glow lebar KUNING gelap (halo) — OPEN LIST
+        _strokeLine(p, 'rgba(180, 130, 0, 0.30)',
           MathEngine.worldLenToScreen(RW + 10, zoom));
 
-        // Layer 2: Fill biru cerah (jalan utama diwarnai)
-        _strokeLine(p, 'rgba(30, 140, 255, 0.55)',
+        // Layer 2: Fill KUNING cerah — OPEN LIST (node yang sedang dievaluasi)
+        _strokeLine(p, 'rgba(245, 197, 24, 0.65)',
           MathEngine.worldLenToScreen(RW, zoom));
 
-        // Layer 3: Core highlight biru muda tipis (tepi tengah bersinar)
-        _strokeLine(p, 'rgba(140, 210, 255, 0.70)',
+        // Layer 3: Core highlight kuning muda tipis (tepi tengah bersinar)
+        _strokeLine(p, 'rgba(255, 235, 120, 0.80)',
           MathEngine.worldLenToScreen(RW * 0.30, zoom));
       }
 
@@ -573,18 +690,18 @@ const Renderer = (() => {
       const s = MathEngine.worldToScreen(node.x, node.y, cam);
       const r = MathEngine.worldLenToScreen(9, zoom);
 
-      // Outer glow ring
+      // Outer glow ring — kuning (OPEN LIST node)
       _ctx.beginPath();
       _ctx.arc(s.x, s.y, r * 2.2, 0, MathEngine.TAU);
-      _ctx.fillStyle = 'rgba(0, 100, 255, 0.12)';
+      _ctx.fillStyle = 'rgba(220, 160, 0, 0.14)';
       _ctx.fill();
 
-      // Inner filled dot — titik biru solid
+      // Inner filled dot — titik KUNING solid (OPEN LIST)
       _ctx.beginPath();
       _ctx.arc(s.x, s.y, Math.max(2, r * 0.65), 0, MathEngine.TAU);
-      _ctx.fillStyle   = 'rgba(80, 180, 255, 0.85)';
+      _ctx.fillStyle   = 'rgba(245, 197, 24, 0.92)';
       _ctx.fill();
-      _ctx.strokeStyle = 'rgba(200, 235, 255, 0.70)';
+      _ctx.strokeStyle = 'rgba(255, 240, 150, 0.80)';
       _ctx.lineWidth   = 1 / zoom;
       _ctx.stroke();
     }
@@ -604,18 +721,18 @@ const Renderer = (() => {
       const p    = MathEngine.curveToScreenPolyline(pe.curve, cam, aabb, segs, RW);
       if (!p || p.length < 2) continue;
 
-      // Border
-      _strokeLine(p, '#905800', MathEngine.worldLenToScreen(RW + 4, zoom));
-      // Orange fill
-      _strokeLine(p, '#e89018', MathEngine.worldLenToScreen(RW, zoom));
+      // Border — merah gelap (PATH)
+      _strokeLine(p, '#7a0015', MathEngine.worldLenToScreen(RW + 4, zoom));
+      // MERAH — PATH jalur optimal
+      _strokeLine(p, '#ee2244', MathEngine.worldLenToScreen(RW, zoom));
 
-      // Animated yellow dash chain on path (bergerak mengikuti waktu)
+      // Animated dash chain on path — merah muda terang (mengalir)
       _ctx.save();
       const dl = Math.max(3 / zoom, 14);
       const gl = Math.max(2 / zoom, 6);
       _ctx.setLineDash([dl, gl]);
-      _ctx.lineDashOffset = -_time * 40 / zoom;  // Memberikan efek animasi mengalir (bergerak)
-      _strokeLine(p, '#f5d820', MathEngine.worldLenToScreen(2.5, zoom));
+      _ctx.lineDashOffset = -_time * 40 / zoom;
+      _strokeLine(p, '#ff8899', MathEngine.worldLenToScreen(2.5, zoom));
       _ctx.setLineDash([]);
       _ctx.restore();
     }
@@ -673,22 +790,64 @@ const Renderer = (() => {
         }
 
       } else if (cam.zoomLevel > 0.16) {
-        // ── Intersection dot — visible at much lower zoom levels ──────────
-        // This fulfils the requirement: "Every vertex must show a clear dot
-        // to reveal the underlying graph structure."
-        const r = Math.max(2 / cam.zoomLevel, 4.5);
+        const degree = (world.adjacency && world.adjacency[node.id])
+          ? world.adjacency[node.id].length : 0;
+        const hash = ((node.id * 7919 + 31) >>> 0) % 100;
+        const isRoundabout   = degree >= 3 && hash < 14;
+        const isTrafficLight = !isRoundabout && degree >= 2 && hash < 38 && cam.zoomLevel > 0.24;
 
-        // Outer ring (slate-blue, stands out from road tarmac)
-        _ctx.beginPath();
-        _ctx.arc(s.x, s.y, r + 1.2, 0, MathEngine.TAU);
-        _ctx.fillStyle = 'rgba(90, 105, 140, 0.70)';
-        _ctx.fill();
+        if (isRoundabout) {
+          // ── Bundaran ──────────────────────────────────────────────────────
+          const rOut = Math.max(6 / cam.zoomLevel, 13);
+          const rInn = rOut * 0.46;
+          _ctx.beginPath(); _ctx.arc(s.x, s.y, rOut, 0, MathEngine.TAU);
+          _ctx.fillStyle = '#5c606e'; _ctx.fill();
+          _ctx.strokeStyle = '#7a7e8a';
+          _ctx.lineWidth   = Math.max(0.8, 1.5 / cam.zoomLevel); _ctx.stroke();
+          _ctx.save();
+          const dl = Math.max(2, 3 / cam.zoomLevel);
+          _ctx.setLineDash([dl, dl]);
+          _ctx.beginPath(); _ctx.arc(s.x, s.y, (rOut + rInn) * 0.5, 0, MathEngine.TAU);
+          _ctx.strokeStyle = 'rgba(255,255,255,0.42)';
+          _ctx.lineWidth   = Math.max(0.4, 0.7 / cam.zoomLevel); _ctx.stroke();
+          _ctx.setLineDash([]); _ctx.restore();
+          _ctx.beginPath(); _ctx.arc(s.x, s.y, rInn, 0, MathEngine.TAU);
+          _ctx.fillStyle = _isNight ? '#1e3512' : '#4caf50'; _ctx.fill();
+          if (cam.zoomLevel > 0.30 && rInn > 5) {
+            _ctx.beginPath(); _ctx.arc(s.x, s.y, rInn * 0.40, 0, MathEngine.TAU);
+            _ctx.fillStyle = _isNight ? '#2a4a1a' : '#81c784'; _ctx.fill();
+          }
 
-        // Inner filled dot
-        _ctx.beginPath();
-        _ctx.arc(s.x, s.y, r, 0, MathEngine.TAU);
-        _ctx.fillStyle   = '#b8c4d8';
-        _ctx.fill();
+        } else if (isTrafficLight) {
+          // ── Lampu Lalu Lintas ─────────────────────────────────────────────
+          const dotR  = Math.max(1.4 / cam.zoomLevel, 2.0);
+          const off   = Math.max(7  / cam.zoomLevel, 11);
+          const phase = Math.floor(_time * 0.7) % 3;
+          const LIT   = ['#ee1111', '#eeee11', '#11dd11'];
+          const DIM   = ['#441111', '#444411', '#114411'];
+          const tx = s.x + off, ty = s.y - off * 1.35;
+          _ctx.fillStyle = '#222';
+          _ctx.fillRect(tx - dotR * 0.65, ty + dotR * 3.4, dotR * 1.3, dotR * 4);
+          _ctx.fillStyle = '#111';
+          _ctx.fillRect(tx - dotR * 1.4, ty - dotR * 3.6, dotR * 2.8, dotR * 7.6);
+          for (let li = 0; li < 3; li++) {
+            _ctx.beginPath();
+            _ctx.arc(tx, ty + (li - 1) * dotR * 2.4, dotR * 0.85, 0, MathEngine.TAU);
+            _ctx.fillStyle = (phase === 2 - li) ? LIT[li] : DIM[li];
+            _ctx.fill();
+          }
+          const r2 = Math.max(1.5 / cam.zoomLevel, 3);
+          _ctx.beginPath(); _ctx.arc(s.x, s.y, r2, 0, MathEngine.TAU);
+          _ctx.fillStyle = 'rgba(90,105,140,0.55)'; _ctx.fill();
+
+        } else {
+          // ── Titik persimpangan biasa ──────────────────────────────────────
+          const r = Math.max(2 / cam.zoomLevel, 4.5);
+          _ctx.beginPath(); _ctx.arc(s.x, s.y, r + 1.2, 0, MathEngine.TAU);
+          _ctx.fillStyle = 'rgba(90, 105, 140, 0.70)'; _ctx.fill();
+          _ctx.beginPath(); _ctx.arc(s.x, s.y, r, 0, MathEngine.TAU);
+          _ctx.fillStyle = '#b8c4d8'; _ctx.fill();
+        }
       }
     }
   }
@@ -759,6 +918,28 @@ const Renderer = (() => {
       _ctx.fillStyle = 'rgba(255,255,210,0.95)';
       _ctx.fill();
     }
+
+    // ── Cone of light (night only) ──────────────────────────
+    if (_isNight) {
+      _ctx.save();
+      _ctx.globalCompositeOperation = 'lighter';
+      const coneLen = bL * 9;
+      const halfAng = Math.PI / 5.5;  // ~33° half-angle
+      for (const sy of [-1, 1]) {
+        const hp = rp(bL * 0.96, sy * bW * 0.72);
+        const grad = _ctx.createRadialGradient(hp.x, hp.y, 0, hp.x, hp.y, coneLen);
+        grad.addColorStop(0,   'rgba(255,255,200,0.38)');
+        grad.addColorStop(0.35,'rgba(255,255,160,0.12)');
+        grad.addColorStop(1,   'rgba(255,255,120,0)');
+        _ctx.beginPath();
+        _ctx.moveTo(hp.x, hp.y);
+        _ctx.arc(hp.x, hp.y, coneLen, angle - halfAng, angle + halfAng);
+        _ctx.closePath();
+        _ctx.fillStyle = grad;
+        _ctx.fill();
+      }
+      _ctx.restore();
+    }
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -778,12 +959,18 @@ const Renderer = (() => {
     // Tick search animation
     _tickSearchAnimation(dt);
 
-    // DRAW BACKGROUND IN SCREEN SPACE
-    const oceanGrad = _ctx.createLinearGradient(0, 0, 0, vp.height);
-    oceanGrad.addColorStop(0,   OCEAN_DEEP);
-    oceanGrad.addColorStop(0.5, OCEAN_MID);
-    oceanGrad.addColorStop(1,   OCEAN_DEEP);
-    _ctx.fillStyle = oceanGrad;
+    // DRAW BACKGROUND IN SCREEN SPACE (siang/malam)
+    const bgGrad = _ctx.createLinearGradient(0, 0, 0, vp.height);
+    if (_isNight) {
+      bgGrad.addColorStop(0,   NIGHT_OCEAN_A);
+      bgGrad.addColorStop(0.5, NIGHT_OCEAN_B);
+      bgGrad.addColorStop(1,   NIGHT_OCEAN_A);
+    } else {
+      bgGrad.addColorStop(0,   OCEAN_DEEP);
+      bgGrad.addColorStop(0.5, OCEAN_MID);
+      bgGrad.addColorStop(1,   OCEAN_DEEP);
+    }
+    _ctx.fillStyle = bgGrad;
     _ctx.fillRect(0, 0, vp.width, vp.height);
 
     // APPLY CANVAS TRANSFORMS FOR WORLD SPACE
@@ -791,11 +978,32 @@ const Renderer = (() => {
     _ctx.scale(cam.zoomLevel, cam.zoomLevel);
     _ctx.translate(-cam.x, -cam.y);
 
+    // Layer order: Background → Tanah/Pulau → Taman → Jalan → Bangunan → Pohon → Node → Kendaraan
     _drawOceanIsland(vp, cam, world);
+    _drawParks(world, cam);          // Taman sebelum jalan — jalan menimpa taman
+    _drawRoads(world, cam, dt);      // Jalan digambar SEBELUM bangunan & pohon
     _drawBuildings(world, cam);
     _drawTrees(world, cam);
-    _drawRoads(world, cam, dt);
     _drawNodes(world, cam);
+
+    // ── Street lamp glow (malam) — lingkaran cahaya di tiap node ───
+    if (_isNight) {
+      const aabb = StateController.getViewportAABB();
+      for (const node of world.nodes) {
+        if (node.x < aabb.minX - 80 || node.x > aabb.maxX + 80 ||
+            node.y < aabb.minY - 80 || node.y > aabb.maxY + 80) continue;
+        const s  = MathEngine.worldToScreen(node.x, node.y, cam);
+        const r  = MathEngine.worldLenToScreen(38, cam.zoomLevel);
+        const gl = _ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, r);
+        gl.addColorStop(0,   'rgba(255,210,80,0.13)');
+        gl.addColorStop(0.5, 'rgba(255,190,50,0.05)');
+        gl.addColorStop(1,   'rgba(255,180,40,0)');
+        _ctx.beginPath();
+        _ctx.arc(s.x, s.y, r, 0, MathEngine.TAU);
+        _ctx.fillStyle = gl;
+        _ctx.fill();
+      }
+    }
 
     // Only draw car if NOT in search animation phase
     if (!(_searchAnim && !_searchAnim.done)) {
@@ -808,6 +1016,8 @@ const Renderer = (() => {
   return Object.freeze({
     init, drawFrame, setActivePath,
     startSearchAnimation, stopSearchAnimation, isSearchAnimating,
+    setSearchPaused, stepSearchAnimation,
+    setNightMode,
   });
 
 })();

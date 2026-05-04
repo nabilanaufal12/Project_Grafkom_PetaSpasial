@@ -57,6 +57,15 @@ const MapGenerator = (() => {
     ROAD_CLEAR_TREE:  44,
     ROAD_CLEAR_BLDG:  52,
     ROAD_SAMPLE_PTS:  16,
+
+    // ── Parks ──
+    PARK_COUNT:       7,
+    MIN_PARK_DIST:    130,
+    PARK_CLEAR_ROAD:  62,
+    PARK_W_MIN:       36,
+    PARK_W_MAX:       72,
+    PARK_H_MIN:       32,
+    PARK_H_MAX:       64,
   });
 
   const CX = CFG.WORLD_W * 0.5;
@@ -548,6 +557,44 @@ const MapGenerator = (() => {
     return buildings;
   }
 
+  // ───────────────────────────────────────────────────────────────
+  // 8b. PARK PLACEMENT
+  //     Taman / Lapangan — kotak hijau besar, tidak menimpa jalan.
+  // ───────────────────────────────────────────────────────────────
+
+  function _placeParks(poly, roadSamples) {
+    const parks   = [];
+    const minD2   = CFG.MIN_PARK_DIST    * CFG.MIN_PARK_DIST;
+    const roadCl2 = CFG.PARK_CLEAR_ROAD * CFG.PARK_CLEAR_ROAD;
+    let tries = 0;
+    while (parks.length < CFG.PARK_COUNT && tries < CFG.PARK_COUNT * 50) {
+      tries++;
+      const px = CX + _rr(-CFG.ISLAND_W * 0.78, CFG.ISLAND_W * 0.78);
+      const py = CY + _rr(-CFG.ISLAND_H * 0.78, CFG.ISLAND_H * 0.78);
+      if (!_insideWithMargin(px, py, poly, 44)) continue;
+
+      let clash = false;
+      for (const pt of roadSamples) {
+        const dx = pt.x - px, dy = pt.y - py;
+        if (dx*dx + dy*dy < roadCl2) { clash = true; break; }
+      }
+      if (clash) continue;
+
+      for (const p of parks) {
+        const dx = p.x - px, dy = p.y - py;
+        if (dx*dx + dy*dy < minD2) { clash = true; break; }
+      }
+      if (clash) continue;
+
+      parks.push({
+        x: px, y: py,
+        w: _rr(CFG.PARK_W_MIN, CFG.PARK_W_MAX),
+        h: _rr(CFG.PARK_H_MIN, CFG.PARK_H_MAX),
+      });
+    }
+    return parks;
+  }
+
   // ─────────────────────────────────────────────────────────────
   // 9. PUBLIC: generate(options)
   //    options.seed → integer — each of the 5 preset seeds produces
@@ -592,6 +639,7 @@ const MapGenerator = (() => {
     const roadSamples = _buildRoadSamples(edges);
     const trees       = _placeTrees(islandPoly, roadSamples);
     const buildings   = _placeBuildings(islandPoly, roadSamples);
+    const parks       = _placeParks(islandPoly, roadSamples);
 
     // ── Connectivity report ──
     const degree   = new Int32Array(nodes.length);
@@ -604,7 +652,7 @@ const MapGenerator = (() => {
       `dead-ends:${deadEnds} | trees:${trees.length} bldg:${buildings.length}`
     );
 
-    return { nodes, edges, adjacency, buildings, trees, islandPoly, BLDG_PALETTES };
+    return { nodes, edges, adjacency, buildings, trees, parks, islandPoly, BLDG_PALETTES };
   }
 
   return Object.freeze({ generate, CFG });

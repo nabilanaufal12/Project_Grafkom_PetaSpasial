@@ -54,6 +54,11 @@
         <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
         Set End
       </button>
+      <!-- Tombol 3b: Random Start & End -->
+      <button class="nav-btn btn-rndroute" id="btn-random-route" title="Acak titik Start dan End secara otomatis [W]" aria-label="Random Rute">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M18 4l3 3-3 3"/><path d="M3 7h11a4 4 0 0 1 4 4"/><path d="M18 20l3-3-3-3"/><path d="M3 17h11a4 4 0 0 0 4-4"/></svg>
+        Random Rute
+      </button>
     </div>
 
     <div class="nav-sep" role="separator"></div>
@@ -180,15 +185,15 @@
   <!-- ══ LEGEND PANEL ══════════════════════════════════════════ -->
   <aside id="legend-panel" aria-label="Legenda warna visualisasi A*">
     <div class="legend-item">
-      <span class="legend-dot" style="background:#1e8cff;box-shadow:0 0 6px #1e8cff88"></span>
-      <span>OPEN LIST (Dieksplorasi)</span>
+      <span class="legend-dot" style="background:#f5c518;box-shadow:0 0 6px #f5c51888"></span>
+      <span>OPEN LIST (Sedang Dievaluasi)</span>
     </div>
     <div class="legend-item">
-      <span class="legend-dot" style="background:#f5c518;box-shadow:0 0 6px #f5c51888"></span>
+      <span class="legend-dot" style="background:#1e8cff;box-shadow:0 0 6px #1e8cff88"></span>
       <span>CLOSED LIST (Sudah Diproses)</span>
     </div>
     <div class="legend-item">
-      <span class="legend-dot" style="background:#e89018;box-shadow:0 0 6px #e8901888"></span>
+      <span class="legend-dot" style="background:#ee2244;box-shadow:0 0 6px #ee224488"></span>
       <span>PATH (Jalur Optimal)</span>
     </div>
     <div class="legend-item">

@@ -346,6 +346,45 @@
     _enterPickMode(PICK.END);
   });
 
+  // Random Start & End
+  $('btn-random-route')?.addEventListener('click', () => {
+    const nodes = StateController.world?.nodes;
+    if (!nodes || nodes.length < 2) { _toast('⚠ Peta belum siap'); return; }
+    if (Renderer.isSearchAnimating()) { _toast('⏳ Tunggu animasi selesai…'); return; }
+
+    // Ambil 2 node berbeda secara acak
+    let a = Math.floor(Math.random() * nodes.length);
+    let b = Math.floor(Math.random() * nodes.length);
+    while (b === a) b = Math.floor(Math.random() * nodes.length);
+
+    // Reset state sebelumnya (hapus path + animasi)
+    Renderer.stopSearchAnimation();
+    Renderer.setActivePath(null, -1, -1);
+    if (_car) { StateController.removeVehicle(0); _car = null; }
+    _paused      = true;
+    _pathReady   = false;
+    _searchResult = null;
+
+    _startId = nodes[a].id;
+    _goalId  = nodes[b].id;
+
+    // Tampilkan marker Start & End langsung di canvas
+    Renderer.setActivePath(null, _startId, _goalId);
+
+    // Enable tombol A*
+    const btnAstar = $('btn-start-astar');
+    if (btnAstar) btnAstar.disabled = false;
+    const btnTrack = $('btn-track');
+    if (btnTrack) btnTrack.disabled = true;
+
+    _toast(`↺ Random Rute: Node #${_startId} → #${_goalId}`);
+    _status(`Start=#${_startId}  End=#${_goalId} — klik Start A* untuk menghitung rute`, 'active');
+    StateController.debugLog(`RandomRoute: ${_startId}→${_goalId}`);
+
+    // Hitung rute otomatis
+    setTimeout(_runRoute, 20);
+  });
+
   // ── Tombol 4: Start A* ──────────────────────────────────────────────────
   $('btn-start-astar')?.addEventListener('click', () => {
     if (_startId < 0 || _goalId < 0) {
@@ -368,7 +407,6 @@
       return;
     }
     _astarPaused = !_astarPaused;
-    // Toggle pause state di Renderer (stub — akan diimplementasi di Renderer.js)
     if (typeof Renderer.setSearchPaused === 'function') {
       Renderer.setSearchPaused(_astarPaused);
     }
@@ -379,6 +417,32 @@
     _status(_astarPaused ? 'Visualisasi A* dijeda' : 'Visualisasi A* dilanjutkan…', _astarPaused ? '' : 'active');
     _toast(_astarPaused ? '⏸ A* Dijeda' : '▶ A* Dilanjutkan');
     StateController.debugLog(`A* ${_astarPaused ? 'paused' : 'resumed'}`);
+  });
+
+  // ── Tombol 13: Mode Siang / Malam ────────────────────────────────────────
+  $('btn-daynight')?.addEventListener('click', () => {
+    _isNightMode = !_isNightMode;
+    document.body.classList.toggle('night-mode', _isNightMode);
+
+    const btn   = $('btn-daynight');
+    const badge = $('status-mode');
+    const label = btn?.querySelector('.btn-daynight-label');
+
+    if (btn)   btn.classList.toggle('is-night', _isNightMode);
+    if (label) label.textContent = _isNightMode ? 'Malam' : 'Siang';
+    if (badge) {
+      badge.textContent = _isNightMode ? '🌙 MALAM' : '☀ SIANG';
+      badge.classList.toggle('night', _isNightMode);
+    }
+
+    // Beritahu Renderer agar render malam native aktif / nonaktif
+    if (typeof Renderer.setNightMode === 'function') {
+      Renderer.setNightMode(_isNightMode);
+    }
+
+    StateController.emit('mode:daynight', { night: _isNightMode });
+    _toast(_isNightMode ? '🌙 Mode Malam aktif' : '☀ Mode Siang aktif');
+    StateController.debugLog(`DayNight → ${_isNightMode ? 'NIGHT' : 'DAY'}`);
   });
 
   // ── Tombol 6: Next Step (maju satu langkah visualisasi A*) ──────────────
@@ -598,6 +662,8 @@
       // Set start/end shortcuts
       case 'S': $('btn-set-start')?.click(); break;
       case 'E': $('btn-set-end')?.click(); break;
+      // Random route shortcut
+      case 'W': $('btn-random-route')?.click(); break;
       // Random map
       case 'R': $('btn-acak')?.click(); break;
     }
